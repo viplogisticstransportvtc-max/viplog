@@ -25,3 +25,4 @@ The webhook is used only by the server-side `/api/apply` function and is never p
 4. Submit a test application from the live site.
 
 The supplied logo is `public/assets/logo.png` and is used as the website logo and favicon.
+# viplog
