@@ -1,4 +1,4 @@
-import { currentDriver } from "./driver-auth";
+import { createHash, randomUUID } from "node:crypto";
 
 const cookieName = "vip_admin_session";
 function env(name:string){ return process.env[name] || ""; }
@@ -11,6 +11,20 @@ function supabase(path:string, init:RequestInit={}){
 }
 function parseCookies(request:Request){return Object.fromEntries((request.headers.get("cookie")||"").split(";").filter(Boolean).map(v=>{const i=v.indexOf("=");return [v.slice(0,i).trim(),decodeURIComponent(v.slice(i+1).trim())];}));}
 async function isAdmin(request:Request){const token=parseCookies(request)[cookieName]; if(!token)return false; const crypto=await import("node:crypto"); const hash=crypto.createHash("sha256").update(token).digest("hex"); const r=await supabase(`admin_sessions?token_hash=eq.${hash}&expires_at=gt.${encodeURIComponent(new Date().toISOString())}&select=id&limit=1`); return r.ok && (await r.json()).length>0;}
+async function currentDriver(request:Request){
+  const h=request.headers.get("authorization")||"";
+  const token=h.toLowerCase().startsWith("bearer ")?h.slice(7).trim():parseCookies(request)["vip_driver_session"];
+  if(!token)return null;
+  const hash=createHash("sha256").update(token).digest("hex");
+  const sessions=await supabase(`driver_sessions?token_hash=eq.${encodeURIComponent(hash)}&expires_at=gt.${encodeURIComponent(new Date().toISOString())}&select=id,account_id,expires_at&limit=1`);
+  if(!sessions.ok)return null;
+  const sessionRows=await sessions.json();
+  if(!sessionRows[0])return null;
+  const accounts=await supabase(`driver_accounts?id=eq.${encodeURIComponent(sessionRows[0].account_id)}&active=eq.true&status=eq.APPROVED&select=id,username,driver_id,truckersmp_username,active,status&limit=1`);
+  if(!accounts.ok)return null;
+  const accountRows=await accounts.json();
+  return accountRows[0]?{...accountRows[0],session_id:sessionRows[0].id}:null;
+}
 function clean(v:any,max=160){return String(v??"").trim().slice(0,max);}
 function validKm(v:any){const n=Math.round(Number(v)); return Number.isFinite(n)&&n>=0?n:null;}
 
@@ -42,7 +56,7 @@ async function resolveDriverId(username:string){
 }
 
 async function finalizeCompletedDelivery(a:any,end:number,distance_km:number){
-  const submissionId=String(a.submission_id||crypto.randomUUID());
+  const submissionId=String(a.submission_id||randomUUID());
   const driverId=await resolveDriverId(String(a.truckersmp_username));
   if(!driverId) throw new Error(`Unable to identify driver ${a.truckersmp_username}.`);
 
@@ -93,7 +107,7 @@ export async function POST(request:Request){
       if(!username||!origin||!destination||!cargo||!date||!/^\d{4}-\d{2}-\d{2}$/.test(date)||start===null) return json({error:"Enter the driver, route, cargo, date and valid starting KM."},400);
       const existing=await supabase(`active_deliveries?truckersmp_username=eq.${encodeURIComponent(username)}&status=eq.ACTIVE&select=id&limit=1`);
       if(existing.ok && (await existing.json()).length) return json({error:"This driver already has an active delivery."},409);
-      const id=crypto.randomUUID();
+      const id=randomUUID();
       const r=await supabase("active_deliveries",{method:"POST",body:JSON.stringify({id,truckersmp_username:username,delivery_date:date,origin,destination,cargo,truck,trailer,start_km:start,status:"ACTIVE"})});
       if(!r.ok)return json({error:"Unable to start delivery.",details:await r.text()},500);
       return json({ok:true,delivery:(await r.json())[0]});
@@ -106,7 +120,7 @@ export async function POST(request:Request){
       if(!username||!origin||!destination||!cargo||!date||!/^(\d{4})-(\d{2})-(\d{2})$/.test(date)||start===null) return json({error:"Enter your username, route, cargo, delivery date and valid starting KM."},400);
       const existing=await supabase(`active_deliveries?truckersmp_username=eq.${encodeURIComponent(username)}&status=eq.ACTIVE&select=id&limit=1`);
       if(existing.ok && (await existing.json()).length) return json({error:"You already have an active delivery. Complete it before starting another."},409);
-      const id=crypto.randomUUID();
+      const id=randomUUID();
       const r=await supabase("active_deliveries",{method:"POST",body:JSON.stringify({id,truckersmp_username:username,delivery_date:date,origin,destination,cargo,truck,trailer,start_km:start,status:"ACTIVE"})});
       if(!r.ok)return json({error:"Unable to start delivery.",details:await r.text()},500);
       return json({ok:true,delivery: (await r.json())[0]});
@@ -118,7 +132,7 @@ export async function POST(request:Request){
     const start=validKm(body.start_km), end=validKm(body.end_km);
     if(!username||!origin||!destination||!cargo||!date||!/^(\d{4})-(\d{2})-(\d{2})$/.test(date)||start===null||end===null||end<=start) return json({error:"Enter your TruckersMP username, delivery details, and valid start/end KM. End KM must be greater than start KM."},400);
     const distance_km=end-start;
-    const id=crypto.randomUUID();
+    const id=randomUUID();
     const r=await supabase("delivery_submissions",{method:"POST",body:JSON.stringify({id,truckersmp_username:username,origin,destination,cargo,truck,trailer,delivery_date:date,start_km:start,end_km:end,distance_km,status:"PENDING"})});
     if(!r.ok){const details=await r.text();console.error(details);return json({error:"Unable to submit delivery.",details},500);}
     return json({ok:true,distance_km});
@@ -161,8 +175,8 @@ export async function GET(request:Request){
 }
 
 export async function PATCH(request:Request){
-  const url=new URL(request.url);
   try{
+    const url=new URL(request.url);
     const body=await request.json().catch(()=>({})) as Record<string,any>;
     const action=clean(body.action,20).toUpperCase();
     if(action==="COMPLETE_ADMIN"){
