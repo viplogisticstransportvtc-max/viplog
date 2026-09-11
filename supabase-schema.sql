@@ -116,3 +116,6 @@ alter table public.truckersmp_members enable row level security;
 alter table public.delivery_records add column if not exists external_id text;
 alter table public.delivery_records add column if not exists source text not null default 'manual';
 create unique index if not exists delivery_records_external_id_uidx on public.delivery_records(external_id) where external_id is not null;
+
+-- TrucksBook import safety: the importer can create driver profiles automatically
+-- for active TruckersMP members or previously unseen TrucksBook usernames.
