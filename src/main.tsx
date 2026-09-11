@@ -156,7 +156,7 @@ function App() {
           </a>
 
           <nav className="hidden items-center gap-5 xl:flex">
-            {["Home","About Us","Requirements","Fleet","TMP Members","Deliveries Progress","Delivery Portal","TrucksBook","Convoys","Gallery","News","Contact"].map((item) => (
+            {["Home","About Us","Requirements","Fleet","TMP Members","Deliveries Progress","TrucksBook","Convoys","Gallery","News","Contact"].map((item) => (
               <a key={item} href={`#${item.toLowerCase().replace(/ /g, "-")}`} className="nav-link">{item}</a>
             ))}
           </nav>
@@ -175,7 +175,7 @@ function App() {
 
         {menuOpen && (
           <div className="border-t border-white/10 bg-[#0d0d0d] px-5 py-4 lg:hidden">
-            {["Home","About Us","Requirements","Fleet","TMP Members","Deliveries Progress","Delivery Portal","TrucksBook","Convoys","Gallery","News","Contact"].map((item) => (
+            {["Home","About Us","Requirements","Fleet","TMP Members","Deliveries Progress","TrucksBook","Convoys","Gallery","News","Contact"].map((item) => (
               <a key={item} href={`#${item.toLowerCase().replace(/ /g, "-")}`} onClick={closeMenu} className="block border-b border-white/5 py-3 text-sm font-semibold">{item}</a>
             ))}
             <a href="#application" onClick={closeMenu} className="red-btn mt-4 w-full justify-center">JOIN THE VTC <ArrowRight size={16}/></a>
@@ -295,7 +295,6 @@ function App() {
         </section>
 
         <DriverProgressSection />
-        <DeliveryPortal />
 
         <section id="tmp-members" className="section bg-[#0d0d0d]">
           <div className="mx-auto max-w-7xl px-5 lg:px-8">
