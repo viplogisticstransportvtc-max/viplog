@@ -156,7 +156,7 @@ function App() {
           </a>
 
           <nav className="hidden items-center gap-5 xl:flex">
-            {["Home","About Us","Requirements","Fleet","TMP Members","Deliveries Progress","TrucksBook","Convoys","Gallery","News","Contact"].map((item) => (
+            {["Home","About Us","Requirements","Fleet","TMP Members","Deliveries Progress","Convoys","Gallery","News","Contact"].map((item) => (
               <a key={item} href={`#${item.toLowerCase().replace(/ /g, "-")}`} className="nav-link">{item}</a>
             ))}
           </nav>
@@ -175,7 +175,7 @@ function App() {
 
         {menuOpen && (
           <div className="border-t border-white/10 bg-[#0d0d0d] px-5 py-4 lg:hidden">
-            {["Home","About Us","Requirements","Fleet","TMP Members","Deliveries Progress","TrucksBook","Convoys","Gallery","News","Contact"].map((item) => (
+            {["Home","About Us","Requirements","Fleet","TMP Members","Deliveries Progress","Convoys","Gallery","News","Contact"].map((item) => (
               <a key={item} href={`#${item.toLowerCase().replace(/ /g, "-")}`} onClick={closeMenu} className="block border-b border-white/5 py-3 text-sm font-semibold">{item}</a>
             ))}
             <a href="#application" onClick={closeMenu} className="red-btn mt-4 w-full justify-center">JOIN THE VTC <ArrowRight size={16}/></a>
@@ -299,14 +299,14 @@ function App() {
         <section id="tmp-members" className="section bg-[#0d0d0d]">
           <div className="mx-auto max-w-7xl px-5 lg:px-8">
             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-              <div><div className="section-kicker">Live TruckersMP VTC roster</div><h2 className="section-title">TRUCKERSMP <span>MEMBERS.</span></h2><p className="mt-3 max-w-2xl text-white/50">Members are synchronized from our official TruckersMP VTC roster automatically. Each member keeps their TruckersMP VTC member ID and user ID.</p></div>
+              <div><div className="section-kicker">Live TruckersMP VTC roster</div><h2 className="section-title">TRUCKERSMP <span>MEMBERS.</span></h2><p className="mt-3 max-w-2xl text-white/50">Members are synchronized from our official TruckersMP VTC roster automatically.</p></div>
               <a href={VTC_CONFIG.truckersmp} target="_blank" rel="noreferrer" className="outline-btn w-fit">VIEW VTC PROFILE <ExternalLink size={15}/></a>
             </div>
             {tmpMembers.length===0 ? <div className="mt-10 rounded-2xl border border-white/10 bg-black/20 p-8 text-center text-white/45">TruckersMP members will appear here after the first management sync.</div> : <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {tmpMembers.map(m=><a key={m.member_id} href={`https://truckersmp.com/user/${m.user_id||m.member_id}`} target="_blank" rel="noreferrer" className="driver-card group">
+              {tmpMembers.map(m=><div key={m.member_id} className="driver-card group">
                 <div className="flex items-center gap-4">{m.avatar_url ? <img src={m.avatar_url} alt="" className="h-14 w-14 rounded-full object-cover"/> : <div className="avatar">{m.username.split(/\s+/).map(x=>x[0]).join('').slice(0,2)}</div>}<div className="min-w-0"><h3 className="truncate text-lg font-black">{m.username}</h3><p className="text-sm text-white/45">{m.role}</p></div></div>
-                <div className="mt-5 border-t border-white/10 pt-4 text-xs text-white/45"><div>VTC MEMBER ID <b className="text-white">{m.member_id}</b></div><div className="mt-1">TRUCKERSMP USER ID <b className="text-white">{m.user_id||'—'}</b></div></div>
-              </a>)}
+                
+              </div>)}
             </div>}
           </div>
         </section>
@@ -330,28 +330,6 @@ function App() {
         <section className="split-section">
           <div className="split-image"></div>
           <div className="split-copy"><div className="section-kicker">TruckersMP</div><h2 className="section-title">TRUCKING ON <span>TRUCKERSMP.</span></h2><p className="body-copy">We regularly take to the roads of TruckersMP, attending official convoys and enjoying the experience of virtual trucking together.</p><div className="mt-8 grid gap-4">{[["TruckersMP Rules","We respect and follow TruckersMP rules."],["Official Convoys","Join us during our official VTC events."],["Professional Driving","Safety and responsible driving come first."]].map(([a,b])=><div className="mini-feature" key={a}><ShieldCheck size={21}/><div><b>{a}</b><p>{b}</p></div></div>)}</div><a href={VTC_CONFIG.truckersmp} target="_blank" rel="noreferrer" className="red-btn mt-8">VIEW OUR TRUCKERSMP PROFILE <ArrowRight size={16}/></a></div>
-        </section>
-
-        <section id="trucksbook" className="section bg-[#0d0d0d]">
-          <div className="mx-auto max-w-7xl px-5 lg:px-8">
-            <div className="grid gap-8 lg:grid-cols-[1.2fr_.8fr] lg:items-center">
-              <div>
-                <div className="section-kicker">Delivery Tracking</div>
-                <h2 className="section-title">POWERED BY <span>TRUCKSBOOK.</span></h2>
-                <p className="body-copy mt-4">Our VTC uses TrucksBook to record completed deliveries and driving distance. Drivers can view their delivery records in TrucksBook, while management can export the VTC Log Overview as CSV and import those records into our website.</p>
-                <div className="mt-7 flex flex-wrap gap-3">
-                  <a href="https://trucksbook.eu/" target="_blank" rel="noreferrer" className="red-btn">OPEN TRUCKSBOOK <ArrowRight size={16}/></a>
-                  <a href="https://trucksbook.eu/wiki" target="_blank" rel="noreferrer" className="outline-btn">TRUCKSBOOK WIKI <ArrowRight size={16}/></a>
-                </div>
-              </div>
-              <div className="rounded-2xl border border-red-500/20 bg-black/40 p-6">
-                <div className="text-xs font-black uppercase tracking-[.22em] text-red-400">How it works</div>
-                <div className="mt-5 space-y-4">
-                  {[['01','Drive with TrucksBook Client'],['02','TrucksBook records the delivery'],['03','Export VTC Log Overview to CSV'],['04','Management imports it into VIP Logistics']].map(([n,t])=><div className="flex items-center gap-4" key={n}><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-500/10 text-xs font-black text-red-400">{n}</span><span className="text-sm font-semibold text-white/75">{t}</span></div>)}
-                </div>
-              </div>
-            </div>
-          </div>
         </section>
 
         <section id="gallery" className="section">
@@ -505,19 +483,6 @@ function DriverProgressSection(){
   </section>;
 }
 
-function TrucksBookImport(){
-  const [file,setFile]=useState<File|null>(null); const [busy,setBusy]=useState(false); const [message,setMessage]=useState('');
-  const importCSV=async()=>{if(!file)return;setBusy(true);setMessage('');try{const csv=await file.text();const r=await fetch('/api/trucksbook',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({csv})});const d=await r.json().catch(()=>({}));if(!r.ok){const detail=d.details?`\n${d.details}`:'';throw new Error(`${d.error||'Unable to import TrucksBook CSV.'}${detail}`);}setMessage(`Imported ${d.imported||0} new deliveries. ${d.created_drivers||0} driver profiles created automatically. ${d.unmatched||0} rows could not be processed.`);setFile(null);}catch(e){setMessage(e instanceof Error?e.message:'Unable to import TrucksBook CSV.')}finally{setBusy(false)}};
-  return <Panel title="TRUCKSBOOK DELIVERY IMPORT"><div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end"><div><p className="text-sm text-white/45">Export your VTC deliveries from TrucksBook <b className="text-white">Log Overview → CSV</b>, then upload the CSV here. Duplicate deliveries are ignored automatically.</p><input className="mt-4 block w-full rounded-xl border border-white/10 bg-black/30 p-3 text-sm" type="file" accept=".csv,text/csv" onChange={e=>setFile(e.target.files?.[0]||null)}/></div><button onClick={importCSV} disabled={!file||busy} className="red-btn w-fit disabled:cursor-not-allowed disabled:opacity-50">{busy?'IMPORTING...':'IMPORT TRUCKSBOOK'} <ArrowRight size={16}/></button></div>{message&&<div className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{message}</div>}<div className="mt-4 text-xs text-white/30">TrucksBook usernames are matched to existing drivers first, then active TruckersMP members. Missing driver profiles are created automatically.</div></Panel>;
-}
-
-async function readApiResponse(r:Response){
-  const text=await r.text();
-  if(!text) return {};
-  try { return JSON.parse(text); }
-  catch { return {error: text.replace(/\s+/g,' ').slice(0,500) || `Server returned HTTP ${r.status}.`}; }
-}
-
 function DeliverySubmissions(){
   const [items,setItems]=useState<any[]>([]); const [loading,setLoading]=useState(true); const [message,setMessage]=useState('');
   const load=async()=>{setLoading(true);try{const r=await fetch('/api/deliveries');const d=await readApiResponse(r);if(!r.ok)throw new Error(d.error||d.details||`Unable to load submissions (HTTP ${r.status})`);setItems(d.submissions||[]);}catch(e){setMessage(e instanceof Error?e.message:'Unable to load submissions.')}finally{setLoading(false)}};
@@ -550,7 +515,7 @@ function ProgressManagement({drivers}:{drivers:Driver[]}){
   useEffect(()=>{load();},[drivers.length]);
   const save=async()=>{setMessage('');try{const r=await fetch('/api/progress',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...form,distance_km:Number(form.distance_km)})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Unable to save delivery');setForm(f=>({...f,origin:'',destination:'',cargo:'',distance_km:''}));await load();}catch(e){setMessage(e instanceof Error?e.message:'Unable to save delivery.')}};
   const remove=async(id:string)=>{if(!confirm('Delete this delivery record?'))return;try{const r=await fetch(`/api/progress?id=${encodeURIComponent(id)}`,{method:'DELETE'});const d=await r.json();if(!r.ok)throw new Error(d.error||'Unable to delete');await load();}catch(e){setMessage(e instanceof Error?e.message:'Unable to delete delivery.')}};
-  return <div className="space-y-6"><DeliverySubmissions/><TrucksBookImport/><div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-6"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><div className="text-xs font-bold uppercase tracking-[.22em] text-red-400">Monthly target</div><h2 className="mt-1 text-3xl font-black">DELIVERIES & PROGRESS</h2><p className="mt-2 text-sm text-white/45">Add each completed delivery here. The public website automatically calculates each driver's monthly progress.</p></div><div className="text-3xl font-black text-red-500">{goal.toLocaleString()} KM</div></div></div>
+  return <div className="space-y-6"><DeliverySubmissions/><div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-6"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><div className="text-xs font-bold uppercase tracking-[.22em] text-red-400">Monthly target</div><h2 className="mt-1 text-3xl font-black">DELIVERIES & PROGRESS</h2><p className="mt-2 text-sm text-white/45">Add each completed delivery here. The public website automatically calculates each driver's monthly progress.</p></div><div className="text-3xl font-black text-red-500">{goal.toLocaleString()} KM</div></div></div>
   <div className="grid gap-6 xl:grid-cols-[.75fr_1.25fr]"><Panel title="ADD DELIVERY"><div className="grid gap-3"><label className="field"><span>Driver</span><select value={form.driver_id} onChange={e=>setForm({...form,driver_id:e.target.value})}>{drivers.map(d=><option key={d.id} value={d.id}>{d.name} ({d.id})</option>)}</select></label><label className="field"><span>Delivery Date</span><input type="date" value={form.delivery_date} onChange={e=>setForm({...form,delivery_date:e.target.value})}/></label><label className="field"><span>Origin</span><input value={form.origin} onChange={e=>setForm({...form,origin:e.target.value})} placeholder="London"/></label><label className="field"><span>Destination</span><input value={form.destination} onChange={e=>setForm({...form,destination:e.target.value})} placeholder="Berlin"/></label><label className="field"><span>Cargo</span><input value={form.cargo} onChange={e=>setForm({...form,cargo:e.target.value})} placeholder="General Cargo"/></label><label className="field"><span>Distance (KM)</span><input type="number" min="1" value={form.distance_km} onChange={e=>setForm({...form,distance_km:e.target.value})} placeholder="500"/></label>{message&&<div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{message}</div>}<button onClick={save} disabled={!drivers.length} className="red-btn justify-center">ADD DELIVERY <ArrowRight size={16}/></button></div></Panel>
   <Panel title={`THIS MONTH'S DELIVERY RECORDS (${records.length})`}>{loading?<div className="py-8 text-center text-white/40">Loading...</div>:records.length===0?<div className="py-8 text-center text-white/40">No delivery records yet.</div>:<div className="space-y-2">{records.map(r=><div key={r.id} className="flex flex-col gap-3 rounded-xl border border-white/5 bg-white/[.02] p-4 sm:flex-row sm:items-center sm:justify-between"><div><b>{r.driver_name}</b><div className="mt-1 text-xs text-white/40">{r.delivery_date} · {r.origin||'—'} → {r.destination||'—'} · {r.cargo||'—'} · <span className="text-white">{Number(r.distance_km).toLocaleString()} KM</span></div></div><RowButton onClick={()=>remove(r.id)}>DELETE</RowButton></div>)}</div>}</Panel></div></div>;
 }
@@ -577,7 +542,7 @@ function DriverAccountsManagement({drivers}:{drivers:Driver[]}){
 }
 function AdminApp() {
   const [store, , refreshStore] = useVtcStore(true);
-  const [tab, setTab] = useState<"dashboard"|"fleet"|"convoys"|"news"|"gallery"|"delivery-operations"|"progress"|"trucksbook"|"tmp-members"|"driver-accounts">("dashboard");
+  const [tab, setTab] = useState<"dashboard"|"fleet"|"convoys"|"news"|"gallery"|"delivery-operations"|"progress"|"tmp-members"|"driver-accounts">("dashboard");
   const [loggedIn, setLoggedIn] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -615,7 +580,7 @@ function AdminApp() {
     { key: "gallery", label: "Gallery" },
     { key: "delivery-operations", label: "DELIVERY OPERATIONS" },
     { key: "progress", label: "DELIVERIES & PROGRESS" },
-    { key: "trucksbook", label: "TRUCKSBOOK" },
+    
     { key: "tmp-members", label: "TRUCKERSMP MEMBERS" },
   ];
   return <div className="min-h-screen bg-[#080808] text-white">
@@ -630,19 +595,10 @@ function AdminApp() {
       {tab==="gallery" && <CrudGallery items={galleryItems} reload={loadGallery} />}
       {tab==="delivery-operations" && <DeliveryOperations drivers={store.drivers} />}
       {tab==="progress" && <ProgressManagement drivers={store.drivers} />}
-      {tab==="trucksbook" && <TrucksBookManagement />}
+      
       {tab==="tmp-members" && <TruckersMPManagement />}
     </div></main>
   </div>;
-}
-
-function TrucksBookManagement(){
-  const [file,setFile]=useState<File|null>(null);
-  const [busy,setBusy]=useState(false);
-  const [message,setMessage]=useState('');
-  const importCSV=async()=>{if(!file)return;setBusy(true);setMessage('');try{const csv=await file.text();const r=await fetch('/api/trucksbook',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({csv})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Unable to import TrucksBook CSV.');setMessage(`Import complete — ${d.imported||0} new deliveries imported, ${d.unmatched||0} unmatched rows.`);setFile(null);}catch(e){setMessage(e instanceof Error?e.message:'Unable to import TrucksBook CSV.')}finally{setBusy(false)}};
-  return <div className="space-y-6"><div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end"><div><div className="section-kicker">External Delivery System</div><h2 className="section-title">TRUCKSBOOK <span>INTEGRATION.</span></h2><p className="mt-4 max-w-2xl text-white/50">TrucksBook automatically records deliveries through its Client. Export your VTC Log Overview as CSV, then import the file here to update the VIP Logistics delivery progress.</p></div><a href="https://trucksbook.eu/" target="_blank" rel="noreferrer" className="red-btn w-fit">OPEN TRUCKSBOOK <ArrowRight size={16}/></a></div>
-    <div className="grid gap-6 lg:grid-cols-[1fr_.7fr]"><Panel title="IMPORT DELIVERY RECORDS"><div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-white/60">1. Open TrucksBook → your VTC → <b className="text-white">Log Overview</b>.<br/>2. Select the period and export the deliveries to <b className="text-white">CSV</b>.<br/>3. Upload that CSV below.</div><input className="mt-5 block w-full rounded-xl border border-white/10 bg-black/30 p-3 text-sm" type="file" accept=".csv,text/csv" onChange={e=>setFile(e.target.files?.[0]||null)}/>{message&&<div className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{message}</div>}<button onClick={importCSV} disabled={!file||busy} className="red-btn mt-5 disabled:cursor-not-allowed disabled:opacity-50">{busy?'IMPORTING...':'IMPORT TRUCKSBOOK CSV'} <ArrowRight size={16}/></button></Panel><Panel title="TRUCKSBOOK"><p className="text-sm leading-6 text-white/50">TrucksBook is used as the delivery source. The website does not request or store driver TrucksBook passwords.</p><div className="mt-5 space-y-3 text-sm text-white/60"><div>✓ Automatic delivery logging by TrucksBook Client</div><div>✓ VTC Log Overview CSV export</div><div>✓ Duplicate delivery protection</div><div>✓ Imported KM feeds the 10,000 KM monthly target</div></div><a href="https://trucksbook.eu/wiki" target="_blank" rel="noreferrer" className="mt-6 inline-flex text-sm font-bold text-red-400">READ TRUCKSBOOK WIKI →</a></Panel></div></div>;
 }
 
 function TruckersMPManagement(){
@@ -656,8 +612,8 @@ function TruckersMPManagement(){
   </div>;
 }
 
-function Dashboard({stats,setTab}:{stats:(string|number)[][];setTab:(x:"dashboard"|"fleet"|"convoys"|"news"|"gallery"|"progress"|"tmp-members"|"trucksbook")=>void}) {
-  return <div><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{stats.map(([n,l])=><div className="rounded-2xl border border-white/10 bg-[#111] p-6" key={String(l)}><div className="text-4xl font-black text-red-500">{n}</div><div className="mt-2 text-sm text-white/45">{l}</div></div>)}</div><div className="mt-8 grid gap-5 md:grid-cols-2"><AdminQuick title="Manage Fleet" text="Track trucks and vehicle assignments." onClick={()=>setTab("fleet")}/><AdminQuick title="Manage Convoys" text="Keep upcoming event information current." onClick={()=>setTab("convoys")}/><AdminQuick title="Manage News" text="Publish announcements and recruitment updates." onClick={()=>setTab("news")}/><AdminQuick title="Manage Gallery" text="Add, edit and remove VTC photos stored in the database." onClick={()=>setTab("gallery")}/><AdminQuick title="DELIVERY SOFTWARE" text="Review driver-submitted deliveries and approve verified kilometres into the monthly progress system." onClick={()=>setTab("progress")}/><AdminQuick title="DELIVERIES & PROGRESS" text="Log deliveries, kilometres and track the 10,000 KM monthly target for every driver." onClick={()=>setTab("progress")}/><AdminQuick title="TRUCKSBOOK" text="Import delivery records exported from TrucksBook Log Overview and send them into the monthly progress system." onClick={()=>setTab("trucksbook")}/><AdminQuick title="TRUCKERSMP MEMBERS" text="Synchronize the official TruckersMP VTC member roster automatically." onClick={()=>setTab("tmp-members")}/></div></div>;
+function Dashboard({stats,setTab}:{stats:(string|number)[][];setTab:(x:"dashboard"|"fleet"|"convoys"|"news"|"gallery"|"progress"|"tmp-members")=>void}) {
+  return <div><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{stats.map(([n,l])=><div className="rounded-2xl border border-white/10 bg-[#111] p-6" key={String(l)}><div className="text-4xl font-black text-red-500">{n}</div><div className="mt-2 text-sm text-white/45">{l}</div></div>)}</div><div className="mt-8 grid gap-5 md:grid-cols-2"><AdminQuick title="Manage Fleet" text="Track trucks and vehicle assignments." onClick={()=>setTab("fleet")}/><AdminQuick title="Manage Convoys" text="Keep upcoming event information current." onClick={()=>setTab("convoys")}/><AdminQuick title="Manage News" text="Publish announcements and recruitment updates." onClick={()=>setTab("news")}/><AdminQuick title="Manage Gallery" text="Add, edit and remove VTC photos stored in the database." onClick={()=>setTab("gallery")}/><AdminQuick title="DELIVERY SOFTWARE" text="Review driver-submitted deliveries and approve verified kilometres into the monthly progress system." onClick={()=>setTab("progress")}/><AdminQuick title="DELIVERIES & PROGRESS" text="Log deliveries, kilometres and track the 10,000 KM monthly target for every driver." onClick={()=>setTab("progress")}/><AdminQuick title="TRUCKERSMP MEMBERS" text="Synchronize the official TruckersMP VTC member roster automatically." onClick={()=>setTab("tmp-members")}/></div></div>;
 }
 function AdminQuick({title,text,onClick}:{title:string;text:string;onClick:()=>void}) { return <button onClick={onClick} className="rounded-2xl border border-white/10 bg-[#101010] p-6 text-left hover:border-red-500/30"><div className="text-xl font-black">{title}</div><p className="mt-2 text-sm text-white/45">{text}</p><div className="mt-5 text-sm font-bold text-red-400">OPEN →</div></button>; }
 function Panel({title,children}:{title:string;children:React.ReactNode}) { return <div className="rounded-2xl border border-white/10 bg-[#101010] p-5 lg:p-6"><h2 className="text-xl font-black">{title}</h2>{children}</div>; }
