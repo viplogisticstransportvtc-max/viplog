@@ -94,13 +94,34 @@ export async function POST(request:Request){
   const members=await membersR.json() as Array<{member_id:string;user_id:string;username:string}>;
 
   const driverMap=new Map<string,string>();
-  for(const d of drivers)driverMap.set(norm(d.name),d.id);
+  for(const d of drivers) driverMap.set(norm(d.name), d.id);
+
+  // TrucksBook names should work even when the website's legacy Drivers list
+  // has not been populated yet. Use the synchronized TruckersMP member as the
+  // source of truth and create a compatible driver row when necessary.
+  const memberByName=new Map<string,{member_id:string;username:string}>();
   for(const m of members){
-   const direct=driverMap.get(norm(m.username));
-   if(direct)driverMap.set(norm(m.username),direct);
-   else {
-    const match=drivers.find(d=>norm(d.name)===norm(m.username));
-    if(match)driverMap.set(norm(m.username),match.id);
+   if(m.username) memberByName.set(norm(m.username),m);
+  }
+
+  const missingDrivers:Array<{id:string;name:string;rank:string;flag:string;km:string}> = [];
+  for(const m of members){
+   const key=norm(m.username);
+   if(!key || driverMap.has(key)) continue;
+   const id=String(m.member_id||) || `TMP-${crypto.createHash("sha1").update(m.username).digest("hex").slice(0,12)}`;
+   missingDrivers.push({id,name:m.username,rank:"Driver",flag:"🌍",km:"0 KM"});
+   driverMap.set(key,id);
+  }
+
+  if(missingDrivers.length){
+   const create=await supabase("drivers?on_conflict=id",{
+    method:"POST",
+    body:JSON.stringify(missingDrivers),
+    headers:{Prefer:"resolution=ignore-duplicates,return=representation"}
+   });
+   if(!create.ok){
+    const details=await create.text();
+    return json({error:"Supabase rejected the driver records required for the TrucksBook import.",details,hint:"The importer found TruckersMP members that are not in the Drivers table. Check that public.drivers exists and that its columns are id, name, rank, flag and km."},500);
    }
   }
 
@@ -131,45 +152,63 @@ export async function POST(request:Request){
   }
 
   if(records.length){
-   // Try the full TrucksBook-aware schema first. If an older database does not
-   // have external_id/source yet, retry with the original delivery_records shape
-   // so existing installations can still import deliveries.
-   let ins=await supabase("delivery_records?on_conflict=external_id",{
-    method:"POST",
-    body:JSON.stringify(records),
-    headers:{Prefer:"resolution=ignore-duplicates,return=representation"}
-   });
+   // Import in small batches so one bad row cannot hide the real Supabase error.
+   // First use the TrucksBook-aware schema; if the migration is not installed,
+   // fall back to the original delivery_records columns.
+   const fullRecords=records;
+   let useExtended=true;
 
-   if(!ins.ok){
-    const firstError=await ins.text();
-    console.error("TrucksBook import (extended schema):",firstError);
-    const looksLikeMissingImportColumns=/external_id|source|column .* does not exist|42703/i.test(firstError);
-    if(looksLikeMissingImportColumns){
-     const legacyRecords=records.map(({external_id,source,...record})=>record);
-     ins=await supabase("delivery_records",{
-      method:"POST",
-      body:JSON.stringify(legacyRecords),
-      headers:{Prefer:"return=representation"}
-     });
-     if(!ins.ok){
-      const legacyError=await ins.text();
-      console.error("TrucksBook import (legacy schema):",legacyError);
-      return json({
-       error:"Supabase rejected the delivery records.",
-       details:legacyError,
-       hint:"Run the TrucksBook delivery migration in supabase-schema.sql, then try the import again."
-      },500);
-     }
-    }else{
+   let probe=await supabase("delivery_records?select=id&limit=1");
+   if(!probe.ok){
+    const probeError=await probe.text();
+    return json({
+     error:"Supabase rejected the delivery records.",
+     details:probeError,
+     hint:"The delivery_records table is missing or cannot be read with the configured SUPABASE_SERVICE_ROLE_KEY. Run supabase-schema.sql in Supabase SQL Editor and redeploy."
+    },500);
+   }
+
+   // Detect whether the optional TrucksBook columns are present.
+   const columnProbe=await supabase("delivery_records?select=external_id,source&limit=1");
+   if(!columnProbe.ok){
+    useExtended=false;
+    console.warn("TrucksBook migration columns are not available; using legacy delivery_records schema.");
+   }
+
+   const payload=useExtended
+    ? fullRecords
+    : fullRecords.map(({external_id,source,...record})=>record);
+
+   // Insert in chunks. PostgREST returns the database's actual constraint/error
+   // message, which is much more useful than a generic import failure.
+   const chunkSize=50;
+   const insertedIds:string[]=[];
+   for(let i=0;i<payload.length;i+=chunkSize){
+    const chunk=payload.slice(i,i+chunkSize);
+    const endpoint=useExtended
+      ? "delivery_records?on_conflict=external_id"
+      : "delivery_records";
+    const headers:Record<string,string>=useExtended
+      ? {Prefer:"resolution=ignore-duplicates,return=representation"}
+      : {Prefer:"return=representation"};
+    const ins=await supabase(endpoint,{method:"POST",body:JSON.stringify(chunk),headers});
+    if(!ins.ok){
+     const errorText=await ins.text();
+     console.error("TrucksBook Supabase insert failed:",errorText);
      return json({
       error:"Supabase rejected the delivery records.",
-      details:firstError,
-      hint:"Check that delivery_records exists, driver_id matches an existing driver, and the TrucksBook migration has been run."
+      details:errorText,
+      failed_batch:i+1,
+      batch_size:chunk.length,
+      hint:"The import now creates missing Drivers from synchronized TruckersMP members. If this still fails, check the exact PostgreSQL error above and confirm delivery_records.driver_id references drivers.id."
      },500);
     }
+    const inserted=await ins.json().catch(()=>[]);
+    if(Array.isArray(inserted)){
+      for(const item of inserted){if(item?.id)insertedIds.push(String(item.id));}
+    }
    }
-   const inserted=await ins.json();
-   imported=Array.isArray(inserted)?inserted.length:0;
+   imported=insertedIds.length;
   }
 
   return json({ok:true,imported,skipped,unmatched,unmatched_names:Array.from(unmatchedNames).slice(0,50),total_rows:rows.length-1,detected_headers:headers});
