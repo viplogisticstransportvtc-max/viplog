@@ -520,9 +520,16 @@ function TrucksBookImport(){
   return <Panel title="TRUCKSBOOK DELIVERY IMPORT"><div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end"><div><p className="text-sm text-white/45">Export your VTC deliveries from TrucksBook <b className="text-white">Log Overview → CSV</b>, then upload the CSV here. Duplicate deliveries are ignored automatically.</p><input className="mt-4 block w-full rounded-xl border border-white/10 bg-black/30 p-3 text-sm" type="file" accept=".csv,text/csv" onChange={e=>setFile(e.target.files?.[0]||null)}/></div><button onClick={importCSV} disabled={!file||busy} className="red-btn w-fit disabled:cursor-not-allowed disabled:opacity-50">{busy?'IMPORTING...':'IMPORT TRUCKSBOOK'} <ArrowRight size={16}/></button></div>{message&&<div className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{message}</div>}<div className="mt-4 text-xs text-white/30">TrucksBook usernames are matched to existing drivers first, then active TruckersMP members. Missing driver profiles are created automatically.</div></Panel>;
 }
 
+async function readApiResponse(r:Response){
+  const text=await r.text();
+  if(!text) return {};
+  try { return JSON.parse(text); }
+  catch { return {error: text.replace(/\s+/g,' ').slice(0,500) || `Server returned HTTP ${r.status}.`}; }
+}
+
 function DeliverySubmissions(){
   const [items,setItems]=useState<any[]>([]); const [loading,setLoading]=useState(true); const [message,setMessage]=useState('');
-  const load=async()=>{setLoading(true);try{const r=await fetch('/api/deliveries');const d=await r.json();if(!r.ok)throw new Error(d.error||'Unable to load submissions');setItems(d.submissions||[]);}catch(e){setMessage(e instanceof Error?e.message:'Unable to load submissions.')}finally{setLoading(false)}};
+  const load=async()=>{setLoading(true);try{const r=await fetch('/api/deliveries');const d=await readApiResponse(r);if(!r.ok)throw new Error(d.error||d.details||`Unable to load submissions (HTTP ${r.status})`);setItems(d.submissions||[]);}catch(e){setMessage(e instanceof Error?e.message:'Unable to load submissions.')}finally{setLoading(false)}};
   useEffect(()=>{load()},[]);
   const act=async(id:string,action:string)=>{setMessage('');try{const r=await fetch('/api/deliveries',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,action})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||d.details||'Unable to process delivery');await load();}catch(e){setMessage(e instanceof Error?e.message:'Unable to process delivery')}};
   return <Panel title={`PENDING DELIVERY SUBMISSIONS (${items.length})`}>{message&&<div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{message}</div>}{loading?<div className="py-8 text-center text-white/40">Loading...</div>:items.length===0?<div className="py-8 text-center text-white/40">No pending driver submissions.</div>:<div className="space-y-3">{items.map(x=><div key={x.id} className="rounded-xl border border-white/5 bg-white/[.02] p-4"><div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><div><b>{x.truckersmp_username}</b><div className="mt-1 text-sm text-white/60">{x.origin} → {x.destination} · {x.cargo}</div><div className="mt-1 text-xs text-white/35">{x.delivery_date} · {Number(x.start_km).toLocaleString()} → {Number(x.end_km).toLocaleString()} KM · <span className="text-white">{Number(x.distance_km).toLocaleString()} KM</span>{x.truck?` · ${x.truck}`:''}</div></div><div className="flex gap-2"><RowButton onClick={()=>act(x.id,'APPROVE')}>APPROVE</RowButton><RowButton onClick={()=>act(x.id,'REJECT')}>REJECT</RowButton></div></div></div>)}</div>}</Panel>;
@@ -531,7 +538,7 @@ function DeliverySubmissions(){
 function DeliveryOperations({drivers}:{drivers:Driver[]}){
   const [members,setMembers]=useState<any[]>([]); const [active,setActive]=useState<any[]>([]); const [busy,setBusy]=useState(false); const [message,setMessage]=useState('');
   const [form,setForm]=useState({truckersmp_username:'',delivery_date:new Date().toISOString().slice(0,10),origin:'',destination:'',cargo:'',truck:'',trailer:'',start_km:''});
-  const load=async()=>{try{const r=await fetch('/api/deliveries');const d=await r.json();if(!r.ok)throw new Error(d.error||'Unable to load deliveries');setActive(d.active_deliveries||[]);}catch(e){setMessage(e instanceof Error?e.message:'Unable to load deliveries.')}};
+  const load=async()=>{try{const r=await fetch('/api/deliveries');const d=await readApiResponse(r);if(!r.ok)throw new Error(d.error||d.details||`Unable to load deliveries (HTTP ${r.status})`);setActive(d.active_deliveries||[]);}catch(e){setMessage(e instanceof Error?e.message:'Unable to load deliveries.')}};
   const loadMembers=async()=>{try{const r=await fetch('/api/truckersmp');const d=await r.json();if(r.ok)setMembers(d.members||[]);}catch{}}
   useEffect(()=>{load();loadMembers();const t=setInterval(load,30000);return()=>clearInterval(t)},[]);
   const names=[...members.map(x=>x.username),...drivers.map(x=>x.name)].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i).sort();

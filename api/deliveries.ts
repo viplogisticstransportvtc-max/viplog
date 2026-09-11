@@ -126,6 +126,7 @@ export async function POST(request:Request){
 }
 
 export async function GET(request:Request){
+  try {
   const url=new URL(request.url);
   const requestedActive=clean(url.searchParams.get("active"),80);
   if(requestedActive){
@@ -143,7 +144,20 @@ export async function GET(request:Request){
   ]);
   if(!pending.ok)return json({error:"Unable to load pending deliveries.",details:await pending.text()},500);
   if(!active.ok)return json({error:"Unable to load active deliveries.",details:await active.text()},500);
-  return json({submissions:await pending.json(),active_deliveries:await active.json()});
+  const pendingText=await pending.text();
+  const activeText=await active.text();
+  let pendingRows:any[]=[]; let activeRows:any[]=[];
+  try { pendingRows=pendingText?JSON.parse(pendingText):[]; } catch {
+    return json({error:"Unable to load pending deliveries.",details:"The database returned an invalid response."},500);
+  }
+  try { activeRows=activeText?JSON.parse(activeText):[]; } catch {
+    return json({error:"Unable to load active deliveries.",details:"The database returned an invalid response."},500);
+  }
+  return json({submissions:Array.isArray(pendingRows)?pendingRows:[],active_deliveries:Array.isArray(activeRows)?activeRows:[]});
+  } catch(e) {
+    console.error("GET /api/deliveries failed",e);
+    return json({error:"Unable to load pending deliveries.",details:e instanceof Error?e.message:"Unexpected server error."},500);
+  }
 }
 
 export async function PATCH(request:Request){
