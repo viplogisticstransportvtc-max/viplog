@@ -62,3 +62,33 @@ insert into public.news (id,category,date,title,description) values
 ('news-2','Convoys','08 SEP 2026','September Convoy Calendar','Three community events are now scheduled. Bring your best truck and join the formation.'),
 ('news-3','Recruitment','01 SEP 2026','Driver Recruitment Open','Applications are open for motivated drivers who want a friendly, rule-focused VTC experience.')
 on conflict (id) do nothing;
+
+create table if not exists public.applications (
+  id uuid primary key,
+  status text not null default 'PENDING' check (status in ('PENDING','ACCEPTED','REJECTED')),
+  fields jsonb not null,
+  message_id text not null unique,
+  channel_id text not null,
+  reviewed_by text,
+  reviewed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists applications_status_idx on public.applications(status, created_at desc);
+create index if not exists applications_channel_message_idx on public.applications(channel_id, message_id);
+alter table public.applications enable row level security;
+
+-- Driver delivery and monthly distance tracking.
+create table if not exists public.delivery_records (
+  id uuid primary key default gen_random_uuid(),
+  driver_id text not null references public.drivers(id) on update cascade on delete cascade,
+  delivery_date date not null default current_date,
+  origin text not null default '',
+  destination text not null default '',
+  cargo text not null default '',
+  distance_km integer not null check (distance_km > 0),
+  created_at timestamptz not null default now()
+);
+create index if not exists delivery_records_driver_date_idx on public.delivery_records(driver_id, delivery_date desc);
+create index if not exists delivery_records_date_idx on public.delivery_records(delivery_date desc);
+alter table public.delivery_records enable row level security;
