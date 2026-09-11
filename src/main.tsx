@@ -528,6 +528,23 @@ function DeliverySubmissions(){
   return <Panel title={`PENDING DELIVERY SUBMISSIONS (${items.length})`}>{message&&<div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{message}</div>}{loading?<div className="py-8 text-center text-white/40">Loading...</div>:items.length===0?<div className="py-8 text-center text-white/40">No pending driver submissions.</div>:<div className="space-y-3">{items.map(x=><div key={x.id} className="rounded-xl border border-white/5 bg-white/[.02] p-4"><div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><div><b>{x.truckersmp_username}</b><div className="mt-1 text-sm text-white/60">{x.origin} → {x.destination} · {x.cargo}</div><div className="mt-1 text-xs text-white/35">{x.delivery_date} · {Number(x.start_km).toLocaleString()} → {Number(x.end_km).toLocaleString()} KM · <span className="text-white">{Number(x.distance_km).toLocaleString()} KM</span>{x.truck?` · ${x.truck}`:''}</div></div><div className="flex gap-2"><RowButton onClick={()=>act(x.id,'APPROVE')}>APPROVE</RowButton><RowButton onClick={()=>act(x.id,'REJECT')}>REJECT</RowButton></div></div></div>)}</div>}</Panel>;
 }
 
+function DeliveryOperations({drivers}:{drivers:Driver[]}){
+  const [members,setMembers]=useState<any[]>([]); const [active,setActive]=useState<any[]>([]); const [busy,setBusy]=useState(false); const [message,setMessage]=useState('');
+  const [form,setForm]=useState({truckersmp_username:'',delivery_date:new Date().toISOString().slice(0,10),origin:'',destination:'',cargo:'',truck:'',trailer:'',start_km:''});
+  const load=async()=>{try{const r=await fetch('/api/deliveries');const d=await r.json();if(!r.ok)throw new Error(d.error||'Unable to load deliveries');setActive(d.active_deliveries||[]);}catch(e){setMessage(e instanceof Error?e.message:'Unable to load deliveries.')}};
+  const loadMembers=async()=>{try{const r=await fetch('/api/truckersmp');const d=await r.json();if(r.ok)setMembers(d.members||[]);}catch{}}
+  useEffect(()=>{load();loadMembers();const t=setInterval(load,30000);return()=>clearInterval(t)},[]);
+  const names=[...members.map(x=>x.username),...drivers.map(x=>x.name)].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i).sort();
+  useEffect(()=>{if(!form.truckersmp_username&&names[0])setForm(f=>({...f,truckersmp_username:names[0]}))},[names.length]);
+  const start=async()=>{setBusy(true);setMessage('');try{const r=await fetch('/api/deliveries',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...form,action:'START_ADMIN',start_km:Number(form.start_km)})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||d.details||'Unable to start delivery.');setMessage(`Delivery started for ${d.delivery.truckersmp_username}.`);setForm(f=>({...f,origin:'',destination:'',cargo:'',truck:'',trailer:'',start_km:''}));await load()}catch(e){setMessage(e instanceof Error?e.message:'Unable to start delivery.')}finally{setBusy(false)}};
+  const complete=async(id:string)=>{const end=window.prompt('Enter ending KM for this delivery:');if(end===null)return;const n=Number(end);if(!Number.isFinite(n))return setMessage('Enter a valid ending KM.');setBusy(true);setMessage('');try{const r=await fetch('/api/deliveries',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'COMPLETE_ADMIN',id,end_km:n})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||d.details||'Unable to complete delivery.');setMessage(`Delivery completed: ${Number(d.distance_km).toLocaleString()} KM sent for approval.`);await load()}catch(e){setMessage(e instanceof Error?e.message:'Unable to complete delivery.')}finally{setBusy(false)}};
+  return <div className="space-y-6"><div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-6"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><div className="text-xs font-bold uppercase tracking-[.22em] text-red-400">Delivery Operations</div><h2 className="mt-1 text-3xl font-black">START & MANAGE DRIVES</h2><p className="mt-2 text-sm text-white/45">Management can start a delivery for a driver, monitor active trips, and complete them when the driver reports the final odometer reading.</p></div><button onClick={()=>{load();loadMembers()}} className="icon-btn" title="Refresh"><RefreshCw size={17}/></button></div></div>
+    {message&&<div className="rounded-xl border border-white/10 bg-white/[.03] p-4 text-sm text-red-300 whitespace-pre-line">{message}</div>}
+    <div className="grid gap-6 xl:grid-cols-[.8fr_1.2fr]"><Panel title="START DELIVERY"><div className="grid gap-3"><label className="field"><span>Driver</span><select value={form.truckersmp_username} onChange={e=>setForm({...form,truckersmp_username:e.target.value})} required><option value="">Select driver</option>{names.map(n=><option key={n}>{n}</option>)}</select></label>{[['Delivery Date','delivery_date'],['Origin','origin'],['Destination','destination'],['Cargo','cargo'],['Truck','truck'],['Trailer','trailer'],['Starting KM','start_km']].map(([label,name])=><label className="field" key={name}><span>{label}</span><input required={['delivery_date','origin','destination','cargo','start_km'].includes(name)} type={name==='delivery_date'?'date':name==='start_km'?'number':'text'} value={(form as any)[name]} onChange={e=>setForm({...form,[name]:e.target.value})}/></label>)}<button onClick={start} disabled={busy||!form.truckersmp_username} className="red-btn w-full justify-center disabled:opacity-50">{busy?'STARTING...':'START DELIVERY'} <ArrowRight size={16}/></button></div></Panel>
+    <Panel title={`ACTIVE DRIVES (${active.length})`}>{active.length===0?<div className="py-10 text-center text-white/35">No active deliveries right now.</div>:<div className="space-y-3">{active.map(x=><div key={x.id} className="rounded-xl border border-red-500/15 bg-red-500/5 p-4"><div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><div><b className="text-lg">{x.truckersmp_username}</b><div className="mt-1 text-sm text-white/60">{x.origin} → {x.destination} · {x.cargo}</div><div className="mt-1 text-xs text-white/35">Started {new Date(x.started_at).toLocaleString()} · Start KM <b className="text-white">{Number(x.start_km).toLocaleString()}</b>{x.truck?` · ${x.truck}`:''}</div></div><button onClick={()=>complete(x.id)} disabled={busy} className="red-btn justify-center disabled:opacity-50">COMPLETE DRIVE <CheckCircle2 size={16}/></button></div></div>)}</div>}</Panel></div>
+  </div>;
+}
+
 function ProgressManagement({drivers}:{drivers:Driver[]}){
   const [records,setRecords]=useState<DeliveryRecord[]>([]); const [goal,setGoal]=useState(10000); const [loading,setLoading]=useState(true); const [message,setMessage]=useState('');
   const [form,setForm]=useState({driver_id:drivers[0]?.id||'',delivery_date:new Date().toISOString().slice(0,10),origin:'',destination:'',cargo:'',distance_km:''});
@@ -578,6 +595,7 @@ function AdminApp() {
     { key: "convoys", label: "Convoys" },
     { key: "news", label: "News" },
     { key: "gallery", label: "Gallery" },
+    { key: "delivery-operations", label: "DELIVERY OPERATIONS" },
     { key: "progress", label: "DELIVERIES & PROGRESS" },
     { key: "trucksbook", label: "TRUCKSBOOK" },
     { key: "tmp-members", label: "TRUCKERSMP MEMBERS" },
@@ -592,6 +610,7 @@ function AdminApp() {
       {tab==="convoys" && <CrudConvoys store={store} refresh={refreshStore} />}
       {tab==="news" && <CrudNews store={store} refresh={refreshStore} />}
       {tab==="gallery" && <CrudGallery items={galleryItems} reload={loadGallery} />}
+      {tab==="delivery-operations" && <DeliveryOperations drivers={store.drivers} />}
       {tab==="progress" && <ProgressManagement drivers={store.drivers} />}
       {tab==="trucksbook" && <TrucksBookManagement />}
       {tab==="tmp-members" && <TruckersMPManagement />}
