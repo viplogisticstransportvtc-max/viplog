@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import {
   ArrowRight, Award, CalendarDays, CheckCircle2, ChevronDown, Clock3,
   Globe2, Instagram, Mail, MapPin, Menu, MessageCircle, ShieldCheck,
-  Truck, Users, X, Youtube, Route
+  Truck, Users, X, Youtube, Route, RefreshCw, ExternalLink
 } from "lucide-react";
 import "./index.css";
 
@@ -84,6 +84,7 @@ type Store = { drivers: Driver[]; fleet: FleetItem[]; convoys: Convoy[]; news: N
 type ProgressRow = { driver_id:string; driver_name:string; deliveries:number; distance_km:number; progress:number; goal_met:boolean };
 type ProgressResponse = { progress?: { month:string; goal_km:number; rows:ProgressRow[] } };
 type DeliveryRecord = { id:string; driver_id:string; driver_name:string; delivery_date:string; origin:string; destination:string; cargo:string; distance_km:number };
+type TruckersMPMember = { member_id:string; user_id:string|null; username:string; avatar_url:string; role:string; joined_at:string|null; active:boolean; last_synced_at:string };
 
 function useProgress(){
   const [data,setData]=useState<ProgressResponse['progress']|null>(null);
@@ -100,6 +101,15 @@ const defaultStore: Store = {
   convoys: defaultConvoys.map(([name,date,time,from,to,server,distance],i) => ({id:`convoy-${i+1}`,name,date,time,from,to,server,distance})),
   news: defaultNews.map(([category,date,title,description],i) => ({id:`news-${i+1}`,category,date,title,description}))
 };
+function useTruckersMPMembers(){
+  const [members,setMembers]=useState<TruckersMPMember[]>([]);
+  const [loading,setLoading]=useState(true);
+  const [lastSync,setLastSync]=useState<string|null>(null);
+  const load=async()=>{try{const r=await fetch('/api/truckersmp');const d=await r.json();if(r.ok){setMembers(d.members||[]);setLastSync((d.members||[])[0]?.last_synced_at||null);}}catch{}finally{setLoading(false);}};
+  useEffect(()=>{load();},[]);
+  return {members,loading,lastSync,refresh:load};
+}
+
 function useVtcStore(admin=false) {
   const [store,setStore] = useState<Store>(defaultStore);
   const refresh = async () => {
@@ -129,6 +139,7 @@ function App() {
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [store] = useVtcStore(false);
   const dbGallery = useGallery();
+  const {members:tmpMembers} = useTruckersMPMembers();
 
   const closeMenu = () => setMenuOpen(false);
 
@@ -145,7 +156,7 @@ function App() {
           </a>
 
           <nav className="hidden items-center gap-5 xl:flex">
-            {["Home","About Us","Requirements","Fleet","Drivers","Deliveries Progress","Convoys","Gallery","News","Contact"].map((item) => (
+            {["Home","About Us","Requirements","Fleet","Drivers","TMP Members","Deliveries Progress","Convoys","Gallery","News","Contact"].map((item) => (
               <a key={item} href={`#${item.toLowerCase().replace(/ /g, "-")}`} className="nav-link">{item}</a>
             ))}
           </nav>
@@ -164,7 +175,7 @@ function App() {
 
         {menuOpen && (
           <div className="border-t border-white/10 bg-[#0d0d0d] px-5 py-4 lg:hidden">
-            {["Home","About Us","Requirements","Fleet","Drivers","Deliveries Progress","Convoys","Gallery","News","Contact"].map((item) => (
+            {["Home","About Us","Requirements","Fleet","Drivers","TMP Members","Deliveries Progress","Convoys","Gallery","News","Contact"].map((item) => (
               <a key={item} href={`#${item.toLowerCase().replace(/ /g, "-")}`} onClick={closeMenu} className="block border-b border-white/5 py-3 text-sm font-semibold">{item}</a>
             ))}
             <a href="#application" onClick={closeMenu} className="red-btn mt-4 w-full justify-center">JOIN THE VTC <ArrowRight size={16}/></a>
@@ -290,6 +301,21 @@ function App() {
             <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {store.drivers.map(({id,name,rank,flag,km}) => <div className="driver-card" key={id}><div className="avatar">{name.split(" ").map(x=>x[0]).join("")}</div><div className="mt-5 flex items-center justify-between"><span className="text-xs font-bold text-red-400">{id}</span><span>{flag}</span></div><h3 className="mt-2 text-xl font-black">{name}</h3><p className="text-sm text-white/45">{rank}</p><div className="mt-5 border-t border-white/10 pt-4 text-sm font-bold">{km}</div></div>)}
             </div>
+          </div>
+        </section>
+
+        <section id="tmp-members" className="section bg-[#0d0d0d]">
+          <div className="mx-auto max-w-7xl px-5 lg:px-8">
+            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+              <div><div className="section-kicker">Live TruckersMP VTC roster</div><h2 className="section-title">TRUCKERSMP <span>MEMBERS.</span></h2><p className="mt-3 max-w-2xl text-white/50">Members are synchronized from our official TruckersMP VTC roster automatically. Each member keeps their TruckersMP VTC member ID and user ID.</p></div>
+              <a href={VTC_CONFIG.truckersmp} target="_blank" rel="noreferrer" className="outline-btn w-fit">VIEW VTC PROFILE <ExternalLink size={15}/></a>
+            </div>
+            {tmpMembers.length===0 ? <div className="mt-10 rounded-2xl border border-white/10 bg-black/20 p-8 text-center text-white/45">TruckersMP members will appear here after the first management sync.</div> : <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {tmpMembers.map(m=><a key={m.member_id} href={`https://truckersmp.com/user/${m.user_id||m.member_id}`} target="_blank" rel="noreferrer" className="driver-card group">
+                <div className="flex items-center gap-4">{m.avatar_url ? <img src={m.avatar_url} alt="" className="h-14 w-14 rounded-full object-cover"/> : <div className="avatar">{m.username.split(/\s+/).map(x=>x[0]).join('').slice(0,2)}</div>}<div className="min-w-0"><h3 className="truncate text-lg font-black">{m.username}</h3><p className="text-sm text-white/45">{m.role}</p></div></div>
+                <div className="mt-5 border-t border-white/10 pt-4 text-xs text-white/45"><div>VTC MEMBER ID <b className="text-white">{m.member_id}</b></div><div className="mt-1">TRUCKERSMP USER ID <b className="text-white">{m.user_id||'—'}</b></div></div>
+              </a>)}
+            </div>}
           </div>
         </section>
 
@@ -459,7 +485,7 @@ function ProgressManagement({drivers}:{drivers:Driver[]}){
 
 function AdminApp() {
   const [store, , refreshStore] = useVtcStore(true);
-  const [tab, setTab] = useState<"dashboard"|"drivers"|"fleet"|"convoys"|"news"|"gallery"|"progress">("dashboard");
+  const [tab, setTab] = useState<"dashboard"|"drivers"|"fleet"|"convoys"|"news"|"gallery"|"progress"|"tmp-members">("dashboard");
   const [loggedIn, setLoggedIn] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -489,8 +515,8 @@ function AdminApp() {
     [store.drivers.length, "Drivers"], [store.fleet.length, "Fleet Vehicles"], [store.convoys.length, "Convoys"], [store.news.length, "News Posts"], [galleryItems.length, "Gallery Images"]
   ];
   return <div className="min-h-screen bg-[#080808] text-white">
-    <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-white/10 bg-[#0b0b0b] p-5 lg:block"><img src={VTC_CONFIG.logo} className="h-16 w-16 rounded-full"/><div className="mt-4 text-lg font-black">VIP MANAGEMENT</div><div className="text-xs uppercase tracking-widest text-white/35">Control Center</div><nav className="mt-8 space-y-2">{[["dashboard","Dashboard"],["drivers","Drivers"],["fleet","Fleet"],["convoys","Convoys"],["news","News"],["gallery","Gallery"],["progress","DELIVERIES & PROGRESS"]].map(([key,label])=><button key={key} onClick={()=>setTab(key as typeof tab)} className={`w-full rounded-xl px-4 py-3 text-left text-sm font-bold ${tab===key?"bg-red-600 text-white":"text-white/55 hover:bg-white/5 hover:text-white"}`}>{label}</button>)}</nav><div className="absolute bottom-5 left-5 right-5 space-y-2"><a href="/" className="block rounded-xl border border-white/10 px-4 py-3 text-center text-sm font-bold">View Website</a><button onClick={logout} className="w-full rounded-xl border border-white/10 px-4 py-3 text-sm text-white/50">Logout</button></div></aside>
-    <main className="lg:ml-64"><header className="sticky top-0 z-20 border-b border-white/10 bg-[#080808]/85 px-5 py-4 backdrop-blur-xl lg:px-8"><div className="flex items-center justify-between"><div><div className="text-xs font-bold uppercase tracking-[.25em] text-red-400">VTC Management</div><h1 className="mt-1 text-2xl font-black">{tab[0].toUpperCase()+tab.slice(1)}</h1></div><button onClick={reset} className="rounded-lg border border-white/10 px-3 py-2 text-xs font-bold text-white/50 hover:text-white">RESET DEMO DATA</button></div><div className="mt-4 flex gap-2 overflow-x-auto lg:hidden">{[["dashboard","Dashboard"],["drivers","Drivers"],["fleet","Fleet"],["convoys","Convoys"],["news","News"],["gallery","Gallery"],["progress","DELIVERIES & PROGRESS"]].map(([key,label])=><button key={key} onClick={()=>setTab(key as typeof tab)} className={`whitespace-nowrap rounded-lg px-3 py-2 text-xs font-bold ${tab===key?"bg-red-600":"bg-white/5 text-white/55"}`}>{label}</button>)}</div></header>
+    <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-white/10 bg-[#0b0b0b] p-5 lg:block"><img src={VTC_CONFIG.logo} className="h-16 w-16 rounded-full"/><div className="mt-4 text-lg font-black">VIP MANAGEMENT</div><div className="text-xs uppercase tracking-widest text-white/35">Control Center</div><nav className="mt-8 space-y-2">{[["dashboard","Dashboard"],["drivers","Drivers"],["fleet","Fleet"],["convoys","Convoys"],["news","News"],["gallery","Gallery"],["progress","DELIVERIES & PROGRESS"],["tmp-members","TRUCKERSMP MEMBERS"]]].map(([key,label])=><button key={key} onClick={()=>setTab(key as typeof tab)} className={`w-full rounded-xl px-4 py-3 text-left text-sm font-bold ${tab===key?"bg-red-600 text-white":"text-white/55 hover:bg-white/5 hover:text-white"}`}>{label}</button>)}</nav><div className="absolute bottom-5 left-5 right-5 space-y-2"><a href="/" className="block rounded-xl border border-white/10 px-4 py-3 text-center text-sm font-bold">View Website</a><button onClick={logout} className="w-full rounded-xl border border-white/10 px-4 py-3 text-sm text-white/50">Logout</button></div></aside>
+    <main className="lg:ml-64"><header className="sticky top-0 z-20 border-b border-white/10 bg-[#080808]/85 px-5 py-4 backdrop-blur-xl lg:px-8"><div className="flex items-center justify-between"><div><div className="text-xs font-bold uppercase tracking-[.25em] text-red-400">VTC Management</div><h1 className="mt-1 text-2xl font-black">{tab[0].toUpperCase()+tab.slice(1)}</h1></div><button onClick={reset} className="rounded-lg border border-white/10 px-3 py-2 text-xs font-bold text-white/50 hover:text-white">RESET DEMO DATA</button></div><div className="mt-4 flex gap-2 overflow-x-auto lg:hidden">{[["dashboard","Dashboard"],["drivers","Drivers"],["fleet","Fleet"],["convoys","Convoys"],["news","News"],["gallery","Gallery"],["progress","DELIVERIES & PROGRESS"],["tmp-members","TRUCKERSMP MEMBERS"]]].map(([key,label])=><button key={key} onClick={()=>setTab(key as typeof tab)} className={`whitespace-nowrap rounded-lg px-3 py-2 text-xs font-bold ${tab===key?"bg-red-600":"bg-white/5 text-white/55"}`}>{label}</button>)}</div></header>
     <div className="p-5 lg:p-8">
       {tab==="dashboard" && <Dashboard stats={stats} setTab={setTab} />}
       {tab==="drivers" && <CrudDrivers store={store} refresh={refreshStore} />}
@@ -499,12 +525,24 @@ function AdminApp() {
       {tab==="news" && <CrudNews store={store} refresh={refreshStore} />}
       {tab==="gallery" && <CrudGallery items={galleryItems} reload={loadGallery} />}
       {tab==="progress" && <ProgressManagement drivers={store.drivers} />}
+      {tab==="tmp-members" && <TruckersMPManagement />}
     </div></main>
   </div>;
 }
 
-function Dashboard({stats,setTab}:{stats:(string|number)[][];setTab:(x:"dashboard"|"drivers"|"fleet"|"convoys"|"news"|"gallery"|"progress")=>void}) {
-  return <div><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{stats.map(([n,l])=><div className="rounded-2xl border border-white/10 bg-[#111] p-6" key={String(l)}><div className="text-4xl font-black text-red-500">{n}</div><div className="mt-2 text-sm text-white/45">{l}</div></div>)}</div><div className="mt-8 grid gap-5 md:grid-cols-2"><AdminQuick title="Manage Drivers" text="Add, edit and remove VTC drivers." onClick={()=>setTab("drivers")}/><AdminQuick title="Manage Fleet" text="Track trucks and vehicle assignments." onClick={()=>setTab("fleet")}/><AdminQuick title="Manage Convoys" text="Keep upcoming event information current." onClick={()=>setTab("convoys")}/><AdminQuick title="Manage News" text="Publish announcements and recruitment updates." onClick={()=>setTab("news")}/><AdminQuick title="Manage Gallery" text="Add, edit and remove VTC photos stored in the database." onClick={()=>setTab("gallery")}/><AdminQuick title="DELIVERIES & PROGRESS" text="Log deliveries, kilometres and track the 10,000 KM monthly target for every driver." onClick={()=>setTab("progress")}/></div></div>;
+function TruckersMPManagement(){
+  const {members,loading,lastSync,refresh}=useTruckersMPMembers();
+  const [syncing,setSyncing]=useState(false); const [message,setMessage]=useState('');
+  const sync=async()=>{setSyncing(true);setMessage('');try{const r=await fetch('/api/truckersmp',{method:'POST'});const d=await r.json();if(!r.ok)throw new Error(d.error||'Unable to sync TruckersMP members.');setMessage(`Sync complete — ${d.synced||0} members imported.`);await refresh();}catch(e){setMessage(e instanceof Error?e.message:'Unable to sync TruckersMP members.');}finally{setSyncing(false);}};
+  return <div><div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end"><div><div className="section-kicker">TruckersMP Integration</div><h2 className="section-title">TRUCKERSMP <span>MEMBERS.</span></h2><p className="mt-4 max-w-2xl text-white/50">This roster is pulled from V.I.P LOGISTICS TRANSPORT VTC (TruckersMP VTC ID 91177). New members are added automatically by the scheduled sync.</p></div><button onClick={sync} disabled={syncing} className="red-btn w-fit"><RefreshCw size={16} className={syncing?'animate-spin':''}/> {syncing?'SYNCING...':'SYNC NOW'}</button></div>
+    {message&&<div className="mt-5 rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-300">{message}</div>}
+    <div className="mt-8 grid gap-4 sm:grid-cols-3"><div className="rounded-2xl border border-white/10 bg-[#101010] p-5"><div className="text-3xl font-black text-red-500">{members.length}</div><div className="mt-1 text-sm text-white/45">Active TMP Members</div></div><div className="rounded-2xl border border-white/10 bg-[#101010] p-5"><div className="text-3xl font-black">91177</div><div className="mt-1 text-sm text-white/45">TruckersMP VTC ID</div></div><div className="rounded-2xl border border-white/10 bg-[#101010] p-5"><div className="text-sm font-black">{lastSync?new Date(lastSync).toLocaleString():'Not synced yet'}</div><div className="mt-1 text-sm text-white/45">Last sync</div></div></div>
+    <Panel title={`SYNCED MEMBERS (${members.length})`}><div className="mt-4 space-y-2">{loading?<div className="py-8 text-center text-white/40">Loading...</div>:members.length===0?<div className="py-8 text-center text-white/40">No synchronized members yet. Click SYNC NOW.</div>:members.map(m=><div key={m.member_id} className="flex flex-col justify-between gap-3 rounded-xl border border-white/5 bg-white/[.02] p-4 sm:flex-row sm:items-center"><div className="flex items-center gap-3">{m.avatar_url?<img src={m.avatar_url} className="h-10 w-10 rounded-full object-cover"/>:<div className="avatar h-10 w-10 text-xs">{m.username.slice(0,2).toUpperCase()}</div>}<div><b>{m.username}</b><div className="text-xs text-white/40">VTC Member ID: {m.member_id} · User ID: {m.user_id||'—'} · {m.role}</div></div></div><a href={`https://truckersmp.com/user/${m.user_id||m.member_id}`} target="_blank" rel="noreferrer" className="text-sm font-bold text-red-400">VIEW PROFILE →</a></div>)}</div></Panel>
+  </div>;
+}
+
+function Dashboard({stats,setTab}:{stats:(string|number)[][];setTab:(x:"dashboard"|"drivers"|"fleet"|"convoys"|"news"|"gallery"|"progress"|"tmp-members")=>void}) {
+  return <div><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{stats.map(([n,l])=><div className="rounded-2xl border border-white/10 bg-[#111] p-6" key={String(l)}><div className="text-4xl font-black text-red-500">{n}</div><div className="mt-2 text-sm text-white/45">{l}</div></div>)}</div><div className="mt-8 grid gap-5 md:grid-cols-2"><AdminQuick title="Manage Drivers" text="Add, edit and remove VTC drivers." onClick={()=>setTab("drivers")}/><AdminQuick title="Manage Fleet" text="Track trucks and vehicle assignments." onClick={()=>setTab("fleet")}/><AdminQuick title="Manage Convoys" text="Keep upcoming event information current." onClick={()=>setTab("convoys")}/><AdminQuick title="Manage News" text="Publish announcements and recruitment updates." onClick={()=>setTab("news")}/><AdminQuick title="Manage Gallery" text="Add, edit and remove VTC photos stored in the database." onClick={()=>setTab("gallery")}/><AdminQuick title="DELIVERIES & PROGRESS" text="Log deliveries, kilometres and track the 10,000 KM monthly target for every driver." onClick={()=>setTab("progress")}/><AdminQuick title="TRUCKERSMP MEMBERS" text="Synchronize the official TruckersMP VTC member roster automatically." onClick={()=>setTab("tmp-members")}/></div></div>;
 }
 function AdminQuick({title,text,onClick}:{title:string;text:string;onClick:()=>void}) { return <button onClick={onClick} className="rounded-2xl border border-white/10 bg-[#101010] p-6 text-left hover:border-red-500/30"><div className="text-xl font-black">{title}</div><p className="mt-2 text-sm text-white/45">{text}</p><div className="mt-5 text-sm font-bold text-red-400">OPEN →</div></button>; }
 function Panel({title,children}:{title:string;children:React.ReactNode}) { return <div className="rounded-2xl border border-white/10 bg-[#101010] p-5 lg:p-6"><h2 className="text-xl font-black">{title}</h2>{children}</div>; }
