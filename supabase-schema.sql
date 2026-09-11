@@ -110,3 +110,9 @@ create table if not exists public.truckersmp_members (
 create index if not exists truckersmp_members_active_idx on public.truckersmp_members(active, username);
 create index if not exists truckersmp_members_user_idx on public.truckersmp_members(user_id);
 alter table public.truckersmp_members enable row level security;
+
+
+-- TrucksBook delivery import support
+alter table public.delivery_records add column if not exists external_id text;
+alter table public.delivery_records add column if not exists source text not null default 'manual';
+create unique index if not exists delivery_records_external_id_uidx on public.delivery_records(external_id) where external_id is not null;
