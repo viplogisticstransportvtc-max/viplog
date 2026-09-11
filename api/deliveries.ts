@@ -114,13 +114,64 @@ export async function PATCH(request:Request){
       if(!r.ok)return json({error:"Unable to reject submission.",details:await r.text()},500);
       return json({ok:true,status:"REJECTED"});
     }
-    const members=await supabase(`truckersmp_members?active=eq.true&username=ilike.${encodeURIComponent(s.truckersmp_username)}&select=user_id,username&limit=1`);
+    // Resolve the website driver profile FIRST. A TruckersMP user_id is not the same
+    // thing as this site's drivers.id, so using member.user_id directly can violate
+    // the delivery_records foreign key.
+    const drivers=await supabase(`drivers?name=ilike.${encodeURIComponent(s.truckersmp_username)}&select=id,name&limit=1`);
     let driverId="";
-    if(members.ok){const m=await members.json();if(m[0]?.user_id)driverId=String(m[0].user_id);}
-    if(!driverId){const drivers=await supabase(`drivers?name=ilike.${encodeURIComponent(s.truckersmp_username)}&select=id&limit=1`);if(drivers.ok){const d=await drivers.json();if(d[0]?.id)driverId=String(d[0].id);}}
+    if(drivers.ok){const d=await drivers.json();if(d[0]?.id)driverId=String(d[0].id);}
+
+    const members=await supabase(`truckersmp_members?active=eq.true&username=ilike.${encodeURIComponent(s.truckersmp_username)}&select=user_id,username,role&limit=1`);
+    let member:any=null;
+    if(members.ok){const m=await members.json();member=m[0]||null;}
+
+    // If no manual website driver exists, create one from the synced TruckersMP member.
+    if(!driverId && member?.user_id){
+      const newId=`TMP-${String(member.user_id).replace(/[^A-Za-z0-9_-]/g,"")}`;
+      const create=await supabase("drivers",{method:"POST",body:JSON.stringify({
+        id:newId,
+        name:s.truckersmp_username,
+        rank:member.role||"Driver",
+        flag:"🌍",
+        km:"0 KM"
+      })});
+      if(create.ok){
+        const created=await create.json();
+        driverId=String(created[0]?.id||newId);
+      }else{
+        // Handle a concurrent/previous auto-created profile gracefully.
+        const retry=await supabase(`drivers?id=eq.${encodeURIComponent(newId)}&select=id&limit=1`);
+        if(retry.ok){const rr=await retry.json();if(rr[0]?.id)driverId=String(rr[0].id);}
+      }
+    }
     if(!driverId)return json({error:`No driver profile found for ${s.truckersmp_username}. Sync TruckersMP members or create the driver first.`},404);
-    const record=await supabase("delivery_records",{method:"POST",body:JSON.stringify({driver_id:driverId,delivery_date:s.delivery_date,origin:s.origin,destination:s.destination,cargo:s.cargo,distance_km:s.distance_km,source:"vip-delivery",external_id:`vip-${s.id}`})});
-    if(!record.ok){const details=await record.text();console.error(details);return json({error:"Unable to create the delivery record.",details},500);}
+
+    const externalId=`vip-${s.id}`;
+    // Approval is idempotent: if the same submission was already recorded, do not
+    // create a second delivery record.
+    const existingRecord=await supabase(`delivery_records?external_id=eq.${encodeURIComponent(externalId)}&select=id,driver_id,distance_km&limit=1`);
+    if(existingRecord.ok){
+      const er=await existingRecord.json();
+      if(er.length){
+        const update=await supabase(`delivery_submissions?id=eq.${encodeURIComponent(id)}`,{method:"PATCH",body:JSON.stringify({status:"APPROVED",reviewed_at:new Date().toISOString(),driver_id:driverId})});
+        if(!update.ok)return json({error:"Delivery record already exists but submission status could not be updated.",details:await update.text()},500);
+        return json({ok:true,status:"APPROVED",already_recorded:true});
+      }
+    }
+
+    const record=await supabase("delivery_records",{method:"POST",body:JSON.stringify({driver_id:driverId,delivery_date:s.delivery_date,origin:s.origin,destination:s.destination,cargo:s.cargo,distance_km:s.distance_km,source:"vip-delivery",external_id:externalId})});
+    if(!record.ok){
+      const details=await record.text();
+      console.error(details);
+      // Compatibility fallback for databases where the optional TrucksBook/V.I.P
+      // columns have not yet been added. The core delivery schema is sufficient
+      // to count the kilometres.
+      const fallback=await supabase("delivery_records",{method:"POST",body:JSON.stringify({driver_id:driverId,delivery_date:s.delivery_date,origin:s.origin,destination:s.destination,cargo:s.cargo,distance_km:s.distance_km})});
+      if(!fallback.ok){
+        const fallbackDetails=await fallback.text();
+        return json({error:"Unable to create the delivery record.",details:`Primary insert: ${details}\nFallback insert: ${fallbackDetails}`},500);
+      }
+    }
     const update=await supabase(`delivery_submissions?id=eq.${encodeURIComponent(id)}`,{method:"PATCH",body:JSON.stringify({status:"APPROVED",reviewed_at:new Date().toISOString(),driver_id:driverId})});
     if(!update.ok)return json({error:"Delivery was recorded but submission status could not be updated.",details:await update.text()},500);
     return json({ok:true,status:"APPROVED"});
