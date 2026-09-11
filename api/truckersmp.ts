@@ -35,13 +35,17 @@ function cronAuthorized(request:Request){
   return auth===`Bearer ${secret}`;
 }
 function first(...values:any[]){ return values.find(v=>v!==undefined&&v!==null&&String(v).trim()!==""); }
-function normalizeMember(raw:any){
+function normalizeMember(raw:any, roleMap:Map<string,string> = new Map()){
   const nestedUser=raw.user||raw.player||{};
   const userId=first(raw.user_id,raw.userId,raw.userid,raw.userID,nestedUser.id,nestedUser.user_id,nestedUser.userId);
   const memberId=first(raw.id,raw.member_id,raw.memberId,raw.vtc_member_id);
   const username=first(raw.username,raw.name,raw.user_name,raw.userName,nestedUser.name,nestedUser.username)||`Member ${memberId||userId||""}`;
   const avatar=first(raw.avatar,raw.avatar_url,nestedUser.avatar,nestedUser.avatar_url)||"";
-  const role=first(raw.role_name,raw.roleName,raw.role?.name,raw.role,nestedUser.vtc?.role?.name)||"Member";
+  const memberRoles=Array.isArray(raw.roles) ? raw.roles : [];
+  const roleNames=memberRoles.map((r:any)=>first(r?.name,r?.role_name,r?.roleName,roleMap.get(String(r?.id||"")))).filter(Boolean).map(String);
+  const roleId=first(raw.role_id,raw.roleId);
+  const mappedRole=roleId!=null ? roleMap.get(String(roleId)) : "";
+  const role=roleNames.length ? roleNames.join(", ") : String(first(mappedRole,raw.role_name,raw.roleName,typeof raw.role === "string" ? raw.role : raw.role?.name)||"Member");
   const joinedAt=first(raw.joinDate,raw.joined_at,raw.joinedAt,raw.created_at,raw.createdAt)||null;
   return {
     member_id:String(memberId||userId||crypto.randomUUID()),
@@ -50,33 +54,39 @@ function normalizeMember(raw:any){
     joined_at:joinedAt, raw:raw
   };
 }
-async function fetchTruckersMP(){
-  const r=await fetch(`https://api.truckersmp.com/v2/vtc/${VTC_ID}/members`,{
-    headers:{
-      Accept:"application/json",
-      "User-Agent":"VIP-LOGISTICS-TRANSPORT-VTC/1.0"
-    },
+async function fetchTruckersMPRoles(){
+  const r=await fetch(`https://api.truckersmp.com/v2/vtc/${VTC_ID}/roles`,{
+    headers:{Accept:"application/json", "User-Agent":"VIP-LOGISTICS-TRANSPORT-VTC/1.0"},
     cache:"no-store"
   });
   const text=await r.text();
+  if(!r.ok) return new Map<string,string>();
+  try{
+    const data=JSON.parse(text);
+    const roles=Array.isArray(data?.response?.roles) ? data.response.roles : [];
+    return new Map<string,string>(roles.map((r:any)=>[String(r.id),String(r.name)]));
+  }catch{return new Map<string,string>();}
+}
+async function fetchTruckersMP(){
+  const [r, roleMap]=await Promise.all([
+    fetch(`https://api.truckersmp.com/v2/vtc/${VTC_ID}/members`,{
+      headers:{Accept:"application/json", "User-Agent":"VIP-LOGISTICS-TRANSPORT-VTC/1.0"},
+      cache:"no-store"
+    }),
+    fetchTruckersMPRoles()
+  ]);
+  const text=await r.text();
   if(!r.ok) throw new Error(`TruckersMP API returned HTTP ${r.status}: ${text.slice(0,300)}`);
   let data:any;
-  try {
-    data=JSON.parse(text);
-  } catch {
-    throw new Error(`TruckersMP returned a non-JSON response. HTTP ${r.status}: ${text.slice(0,300)}`);
-  }
-  // Official v2 API wraps VTC results in a "response" object.
-  // Keep compatibility with older/alternate response shapes too.
+  try { data=JSON.parse(text); }
+  catch { throw new Error(`TruckersMP returned a non-JSON response. HTTP ${r.status}: ${text.slice(0,300)}`); }
   const members=Array.isArray(data?.response?.members)
     ? data.response.members
     : Array.isArray(data?.members)
       ? data.members
-      : Array.isArray(data)
-        ? data
-        : [];
+      : Array.isArray(data) ? data : [];
   if(data?.error===true) throw new Error(String(data?.descriptor||data?.response||"TruckersMP API reported an error."));
-  return members.map(normalizeMember);
+  return members.map((m:any)=>normalizeMember(m,roleMap));
 }
 async function syncMembers(){
   const members=await fetchTruckersMP();
