@@ -557,9 +557,29 @@ function ProgressManagement({drivers}:{drivers:Driver[]}){
   <Panel title={`THIS MONTH'S DELIVERY RECORDS (${records.length})`}>{loading?<div className="py-8 text-center text-white/40">Loading...</div>:records.length===0?<div className="py-8 text-center text-white/40">No delivery records yet.</div>:<div className="space-y-2">{records.map(r=><div key={r.id} className="flex flex-col gap-3 rounded-xl border border-white/5 bg-white/[.02] p-4 sm:flex-row sm:items-center sm:justify-between"><div><b>{r.driver_name}</b><div className="mt-1 text-xs text-white/40">{r.delivery_date} · {r.origin||'—'} → {r.destination||'—'} · {r.cargo||'—'} · <span className="text-white">{Number(r.distance_km).toLocaleString()} KM</span></div></div><RowButton onClick={()=>remove(r.id)}>DELETE</RowButton></div>)}</div>}</Panel></div></div>;
 }
 
+
+function DriverAccountsManagement({drivers}:{drivers:Driver[]}){
+  const [accounts,setAccounts]=useState<any[]>([]); const [loading,setLoading]=useState(true); const [busy,setBusy]=useState(false); const [message,setMessage]=useState('');
+  const [form,setForm]=useState({username:'',password:'',driver_id:drivers[0]?.id||'',truckersmp_username:drivers[0]?.name||''});
+  const load=async()=>{setLoading(true);try{const r=await fetch('/api/driver-accounts');const d=await r.json();if(!r.ok)throw new Error(d.error||'Unable to load driver accounts.');setAccounts(d.accounts||[]);}catch(e){setMessage(e instanceof Error?e.message:'Unable to load driver accounts.')}finally{setLoading(false)}};
+  useEffect(()=>{load()},[]);
+  useEffect(()=>{if(!form.driver_id&&drivers[0])setForm(f=>({...f,driver_id:drivers[0].id,truckersmp_username:drivers[0].name}));},[drivers.length]);
+  const selected=drivers.find(d=>d.id===form.driver_id);
+  const action=async(actionName:string,id:string)=>{setBusy(true);setMessage('');try{const r=await fetch('/api/driver-accounts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:actionName,id})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Unable to update registration.');setMessage(actionName==='approve'?'Registration approved. The driver can now log in.':'Registration rejected.');await load();}catch(e){setMessage(e instanceof Error?e.message:'Unable to update registration.')}finally{setBusy(false)}};
+  const create=async()=>{setBusy(true);setMessage('');try{const r=await fetch('/api/driver-accounts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'create',...form})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||d.details||'Unable to create account.');setMessage(`Driver account @${d.account.username} created successfully.`);setForm(f=>({...f,username:'',password:''}));await load();}catch(e){setMessage(e instanceof Error?e.message:'Unable to create account.')}finally{setBusy(false)}};
+  const resetPassword=async(id:string)=>{const password=window.prompt('Enter a new password (minimum 8 characters):');if(password===null)return;if(password.length<8)return setMessage('Password must be at least 8 characters.');setBusy(true);setMessage('');try{const r=await fetch('/api/driver-accounts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'reset-password',id,password})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Unable to reset password.');setMessage('Password reset successfully. The driver must sign in again.');await load();}catch(e){setMessage(e instanceof Error?e.message:'Unable to reset password.')}finally{setBusy(false)}};
+  const toggle=async(id:string)=>{setBusy(true);setMessage('');try{const r=await fetch('/api/driver-accounts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'toggle',id})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Unable to update account.');setMessage(d.active?'Account enabled.':'Account disabled and active sessions revoked.');await load();}catch(e){setMessage(e instanceof Error?e.message:'Unable to update account.')}finally{setBusy(false)}};
+  const pending=accounts.filter(a=>a.status==='PENDING'), approved=accounts.filter(a=>a.status!=='PENDING');
+  return <div className="space-y-6"><div><div className="section-kicker">Driver Authentication</div><h2 className="section-title">DRIVER <span>ACCOUNTS.</span></h2><p className="mt-4 max-w-2xl text-white/50">Drivers can register their own login using their TruckersMP VTC membership. New registrations stay pending until management approves them.</p></div>
+    {message&&<div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-300 whitespace-pre-line">{message}</div>}
+    {pending.length>0&&<Panel title={`PENDING REGISTRATIONS (${pending.length})`}><div className="space-y-2">{pending.map(a=><div key={a.id} className="flex flex-col justify-between gap-3 rounded-xl border border-yellow-500/15 bg-yellow-500/5 p-4 sm:flex-row sm:items-center"><div><b>@{a.username}</b><div className="mt-1 text-xs text-white/40">TruckersMP: {a.truckersmp_username} · Submitted {new Date(a.created_at).toLocaleString()}</div></div><div className="flex gap-2"><RowButton onClick={()=>action('approve',a.id)}>APPROVE</RowButton><RowButton onClick={()=>action('reject',a.id)}>REJECT</RowButton></div></div>)}</div></Panel>}
+    <div className="grid gap-6 xl:grid-cols-[.8fr_1.2fr]"><Panel title="MANAGEMENT ACCOUNT CREATION"><div className="grid gap-3"><label className="field"><span>Website Driver</span><select value={form.driver_id} onChange={e=>{const d=drivers.find(x=>x.id===e.target.value);setForm({...form,driver_id:e.target.value,truckersmp_username:d?.name||''})}}><option value="">Select driver</option>{drivers.map(d=><option key={d.id} value={d.id}>{d.name} · {d.id}</option>)}</select></label><label className="field"><span>TruckersMP Username</span><input value={form.truckersmp_username} onChange={e=>setForm({...form,truckersmp_username:e.target.value})} placeholder="Exact TruckersMP username"/></label><label className="field"><span>Login Username</span><input value={form.username} onChange={e=>setForm({...form,username:e.target.value.toLowerCase()})} placeholder="e.g. john.driver" autoComplete="off"/></label><label className="field"><span>Temporary / Initial Password</span><input type="password" value={form.password} onChange={e=>setForm({...form,password:e.target.value})} placeholder="Minimum 8 characters" autoComplete="new-password"/></label><button onClick={create} disabled={busy||!selected} className="red-btn mt-2 w-full justify-center disabled:opacity-50">{busy?'SAVING...':'CREATE DRIVER ACCOUNT'} <ArrowRight size={16}/></button></div></Panel>
+    <Panel title={`DRIVER ACCOUNTS (${approved.length})`}>{loading?<div className="py-8 text-center text-white/40">Loading...</div>:approved.length===0?<div className="py-8 text-center text-white/40">No approved driver accounts yet.</div>:<div className="space-y-2">{approved.map(a=><div key={a.id} className="flex flex-col justify-between gap-3 rounded-xl border border-white/5 bg-white/[.02] p-4 sm:flex-row sm:items-center"><div><b>@{a.username}</b><div className="mt-1 text-xs text-white/40">{a.drivers?.name||a.truckersmp_username} · TMP: {a.truckersmp_username} · {a.active?'ACTIVE':'DISABLED'}{a.status==='REJECTED'?' · REJECTED':''}</div><div className="mt-1 text-xs text-white/25">Last login: {a.last_login_at?new Date(a.last_login_at).toLocaleString():'Never'}</div></div><div className="flex gap-2"><RowButton onClick={()=>resetPassword(a.id)}>RESET PASSWORD</RowButton><RowButton onClick={()=>toggle(a.id)}>{a.active?'DISABLE':'ENABLE'}</RowButton></div></div>)}</div>}</Panel></div>
+  </div>;
+}
 function AdminApp() {
   const [store, , refreshStore] = useVtcStore(true);
-  const [tab, setTab] = useState<"dashboard"|"drivers"|"fleet"|"convoys"|"news"|"gallery"|"progress"|"tmp-members"|"trucksbook">("dashboard");
+  const [tab, setTab] = useState<"dashboard"|"drivers"|"fleet"|"convoys"|"news"|"gallery"|"delivery-operations"|"progress"|"trucksbook"|"tmp-members"|"driver-accounts">("dashboard");
   const [loggedIn, setLoggedIn] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -591,6 +611,7 @@ function AdminApp() {
   const adminTabs = [
     { key: "dashboard", label: "Dashboard" },
     { key: "drivers", label: "Drivers" },
+    { key: "driver-accounts", label: "DRIVER ACCOUNTS" },
     { key: "fleet", label: "Fleet" },
     { key: "convoys", label: "Convoys" },
     { key: "news", label: "News" },
@@ -606,6 +627,7 @@ function AdminApp() {
     <div className="p-5 lg:p-8">
       {tab==="dashboard" && <Dashboard stats={stats} setTab={setTab} />}
       {tab==="drivers" && <CrudDrivers store={store} refresh={refreshStore} />}
+      {tab==="driver-accounts" && <DriverAccountsManagement drivers={store.drivers} />}
       {tab==="fleet" && <CrudFleet store={store} refresh={refreshStore} />}
       {tab==="convoys" && <CrudConvoys store={store} refresh={refreshStore} />}
       {tab==="news" && <CrudNews store={store} refresh={refreshStore} />}

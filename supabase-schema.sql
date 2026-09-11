@@ -161,3 +161,39 @@ create table if not exists public.active_deliveries (
 );
 create index if not exists active_deliveries_driver_status_idx on public.active_deliveries(truckersmp_username, status, started_at desc);
 alter table public.active_deliveries enable row level security;
+
+-- V.I.P Delivery Software: username/password driver accounts and secure sessions.
+create table if not exists public.driver_accounts (
+  id uuid primary key default gen_random_uuid(),
+  username text not null unique,
+  password_hash text not null,
+  driver_id text not null references public.drivers(id) on update cascade on delete cascade,
+  truckersmp_username text not null,
+  active boolean not null default true,
+  status text not null default 'APPROVED' check (status in ('PENDING','APPROVED','REJECTED')),
+  reviewed_by text,
+  reviewed_at timestamptz,
+  created_at timestamptz not null default now(),
+  last_login_at timestamptz
+);
+create index if not exists driver_accounts_driver_idx on public.driver_accounts(driver_id);
+create index if not exists driver_accounts_active_idx on public.driver_accounts(active, username);
+alter table public.driver_accounts add column if not exists status text not null default 'APPROVED';
+alter table public.driver_accounts add column if not exists reviewed_by text;
+alter table public.driver_accounts add column if not exists reviewed_at timestamptz;
+DO $$ BEGIN
+  ALTER TABLE public.driver_accounts ADD CONSTRAINT driver_accounts_status_check CHECK (status in ('PENDING','APPROVED','REJECTED'));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+alter table public.driver_accounts enable row level security;
+
+create table if not exists public.driver_sessions (
+  id uuid primary key default gen_random_uuid(),
+  token_hash text not null unique,
+  account_id uuid not null references public.driver_accounts(id) on delete cascade,
+  expires_at timestamptz not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists driver_sessions_token_idx on public.driver_sessions(token_hash);
+create index if not exists driver_sessions_expiry_idx on public.driver_sessions(expires_at);
+alter table public.driver_sessions enable row level security;

@@ -1,6 +1,9 @@
+import { currentDriver } from "./driver-auth";
+
 const cookieName = "vip_admin_session";
 function env(name:string){ return process.env[name] || ""; }
-function json(data:Record<string,unknown>, status=200){ return Response.json(data,{status,headers:{"Cache-Control":"no-store"}}); }
+function json(data:Record<string,unknown>, status=200){ return Response.json(data,{status,headers:{"Cache-Control":"no-store","Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"Content-Type, Authorization","Access-Control-Allow-Methods":"GET, POST, PATCH, OPTIONS"}}); }
+export async function OPTIONS(){ return json({ok:true}); }
 function supabase(path:string, init:RequestInit={}){
   const base=env("SUPABASE_URL").replace(/\/+$/,"" ).replace(/\/rest\/v1$/i,"");
   const key=env("SUPABASE_SERVICE_ROLE_KEY");
@@ -96,7 +99,9 @@ export async function POST(request:Request){
       return json({ok:true,delivery:(await r.json())[0]});
     }
     if(action==="START"){
-      const username=clean(body.truckersmp_username,80), origin=clean(body.origin), destination=clean(body.destination), cargo=clean(body.cargo), truck=clean(body.truck,100), trailer=clean(body.trailer,100), date=clean(body.delivery_date,20);
+      const driver=await currentDriver(request);
+      if(!driver) return json({error:"Driver login required."},401);
+      const username=String(driver.truckersmp_username), origin=clean(body.origin), destination=clean(body.destination), cargo=clean(body.cargo), truck=clean(body.truck,100), trailer=clean(body.trailer,100), date=clean(body.delivery_date,20);
       const start=validKm(body.start_km);
       if(!username||!origin||!destination||!cargo||!date||!/^(\d{4})-(\d{2})-(\d{2})$/.test(date)||start===null) return json({error:"Enter your username, route, cargo, delivery date and valid starting KM."},400);
       const existing=await supabase(`active_deliveries?truckersmp_username=eq.${encodeURIComponent(username)}&status=eq.ACTIVE&select=id&limit=1`);
@@ -107,7 +112,9 @@ export async function POST(request:Request){
       return json({ok:true,delivery: (await r.json())[0]});
     }
     // Backwards-compatible one-shot submission.
-    const username=clean(body.truckersmp_username,80), origin=clean(body.origin), destination=clean(body.destination), cargo=clean(body.cargo), truck=clean(body.truck,100), trailer=clean(body.trailer,100), date=clean(body.delivery_date,20);
+    const driver=await currentDriver(request);
+    if(!driver) return json({error:"Driver login required."},401);
+    const username=String(driver.truckersmp_username), origin=clean(body.origin), destination=clean(body.destination), cargo=clean(body.cargo), truck=clean(body.truck,100), trailer=clean(body.trailer,100), date=clean(body.delivery_date,20);
     const start=validKm(body.start_km), end=validKm(body.end_km);
     if(!username||!origin||!destination||!cargo||!date||!/^(\d{4})-(\d{2})-(\d{2})$/.test(date)||start===null||end===null||end<=start) return json({error:"Enter your TruckersMP username, delivery details, and valid start/end KM. End KM must be greater than start KM."},400);
     const distance_km=end-start;
@@ -120,8 +127,11 @@ export async function POST(request:Request){
 
 export async function GET(request:Request){
   const url=new URL(request.url);
-  const activeUsername=clean(url.searchParams.get("active"),80);
-  if(activeUsername){
+  const requestedActive=clean(url.searchParams.get("active"),80);
+  if(requestedActive){
+    const driver=await currentDriver(request);
+    if(!driver) return json({error:"Driver login required."},401);
+    const activeUsername=String(driver.truckersmp_username);
     const r=await supabase(`active_deliveries?truckersmp_username=eq.${encodeURIComponent(activeUsername)}&status=eq.ACTIVE&select=id,truckersmp_username,delivery_date,origin,destination,cargo,truck,trailer,start_km,started_at,status&order=started_at.desc&limit=1`);
     if(!r.ok)return json({error:"Unable to load active delivery."},500);
     return json({active:(await r.json())[0]||null});
@@ -156,12 +166,16 @@ export async function PATCH(request:Request){
       }catch(e){return json({error:String(e instanceof Error?e.message:e)},500);}
     }
     if(action==="COMPLETE"){
+      const driver=await currentDriver(request);
+      if(!driver) return json({error:"Driver login required."},401);
       const id=clean(body.id,80), end=validKm(body.end_km);
       if(!id||end===null)return json({error:"Missing active delivery or ending KM."},400);
       const find=await supabase(`active_deliveries?id=eq.${encodeURIComponent(id)}&status=eq.ACTIVE&select=*`);
       if(!find.ok)return json({error:"Unable to find active delivery.",details:await find.text()},500);
       const rows=await find.json(); if(!rows.length)return json({error:"Active delivery not found or already completed."},404);
-      const a=rows[0]; if(end<=Number(a.start_km))return json({error:"Ending KM must be greater than starting KM."},400);
+      const a=rows[0];
+      if(String(a.truckersmp_username).toLowerCase()!==String(driver.truckersmp_username).toLowerCase()) return json({error:"You can only complete your own delivery."},403);
+      if(end<=Number(a.start_km))return json({error:"Ending KM must be greater than starting KM."},400);
       const distance_km=end-Number(a.start_km);
       try{
         // Fully automatic mode: completion immediately records and approves the
