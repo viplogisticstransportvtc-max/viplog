@@ -119,3 +119,45 @@ create unique index if not exists delivery_records_external_id_uidx on public.de
 
 -- TrucksBook import safety: the importer can create driver profiles automatically
 -- for active TruckersMP members or previously unseen TrucksBook usernames.
+
+-- V.I.P Delivery Software: driver-submitted deliveries awaiting management approval.
+create table if not exists public.delivery_submissions (
+  id uuid primary key,
+  truckersmp_username text not null,
+  driver_id text,
+  delivery_date date not null,
+  origin text not null default '',
+  destination text not null default '',
+  cargo text not null default '',
+  truck text not null default '',
+  trailer text not null default '',
+  start_km integer not null check (start_km >= 0),
+  end_km integer not null check (end_km > start_km),
+  distance_km integer not null check (distance_km > 0),
+  status text not null default 'PENDING' check (status in ('PENDING','APPROVED','REJECTED')),
+  reviewed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists delivery_submissions_status_idx on public.delivery_submissions(status, created_at desc);
+alter table public.delivery_submissions enable row level security;
+
+-- V.I.P Delivery Software: active START -> COMPLETE delivery sessions.
+create table if not exists public.active_deliveries (
+  id uuid primary key,
+  truckersmp_username text not null,
+  delivery_date date not null,
+  origin text not null default '',
+  destination text not null default '',
+  cargo text not null default '',
+  truck text not null default '',
+  trailer text not null default '',
+  start_km integer not null check (start_km >= 0),
+  end_km integer,
+  distance_km integer,
+  status text not null default 'ACTIVE' check (status in ('ACTIVE','COMPLETED')),
+  submission_id uuid,
+  started_at timestamptz not null default now(),
+  completed_at timestamptz
+);
+create index if not exists active_deliveries_driver_status_idx on public.active_deliveries(truckersmp_username, status, started_at desc);
+alter table public.active_deliveries enable row level security;

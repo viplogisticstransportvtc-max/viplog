@@ -156,7 +156,7 @@ function App() {
           </a>
 
           <nav className="hidden items-center gap-5 xl:flex">
-            {["Home","About Us","Requirements","Fleet","Drivers","TMP Members","Deliveries Progress","TrucksBook","Convoys","Gallery","News","Contact"].map((item) => (
+            {["Home","About Us","Requirements","Fleet","Drivers","TMP Members","Deliveries Progress","Delivery Portal","TrucksBook","Convoys","Gallery","News","Contact"].map((item) => (
               <a key={item} href={`#${item.toLowerCase().replace(/ /g, "-")}`} className="nav-link">{item}</a>
             ))}
           </nav>
@@ -175,7 +175,7 @@ function App() {
 
         {menuOpen && (
           <div className="border-t border-white/10 bg-[#0d0d0d] px-5 py-4 lg:hidden">
-            {["Home","About Us","Requirements","Fleet","Drivers","TMP Members","Deliveries Progress","TrucksBook","Convoys","Gallery","News","Contact"].map((item) => (
+            {["Home","About Us","Requirements","Fleet","Drivers","TMP Members","Deliveries Progress","Delivery Portal","TrucksBook","Convoys","Gallery","News","Contact"].map((item) => (
               <a key={item} href={`#${item.toLowerCase().replace(/ /g, "-")}`} onClick={closeMenu} className="block border-b border-white/5 py-3 text-sm font-semibold">{item}</a>
             ))}
             <a href="#application" onClick={closeMenu} className="red-btn mt-4 w-full justify-center">JOIN THE VTC <ArrowRight size={16}/></a>
@@ -295,48 +295,16 @@ function App() {
         </section>
 
         <DriverProgressSection />
+        <DeliveryPortal />
 
         <section id="drivers" className="section">
-          <div className="mx-auto max-w-7xl px-5 lg:px-8">
-            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-              <div>
-                <div className="section-kicker">Live VTC roster</div>
-                <h2 className="section-title">MEET OUR <span>DRIVERS.</span></h2>
-                <p className="mt-3 max-w-2xl text-white/50">This Drivers panel is synchronized with the official TruckersMP VTC roster. Driver names, roles and avatars update automatically after each sync.</p>
-              </div>
-              <a href="#tmp-members" className="outline-btn w-fit">VIEW TMP MEMBERS <ExternalLink size={15}/></a>
+          <div className="mx-auto max-w-7xl px-5 lg:px-8"><div className="section-kicker">The people</div><h2 className="section-title">MEET OUR <span>DRIVERS.</span></h2>
+            <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {store.drivers.map(({id,name,rank,flag,km}) => <div className="driver-card" key={id}><div className="avatar">{name.split(" ").map(x=>x[0]).join("")}</div><div className="mt-5 flex items-center justify-between"><span className="text-xs font-bold text-red-400">{id}</span><span>{flag}</span></div><h3 className="mt-2 text-xl font-black">{name}</h3><p className="text-sm text-white/45">{rank}</p><div className="mt-5 border-t border-white/10 pt-4 text-sm font-bold">{km}</div></div>)}
             </div>
-
-            {tmpMembers.length===0 ? (
-              <div className="mt-10 rounded-2xl border border-white/10 bg-black/20 p-8 text-center">
-                <Users className="mx-auto mb-3 text-white/30" size={32}/>
-                <p className="text-white/45">TruckersMP drivers will appear here after the first management sync.</p>
-              </div>
-            ) : (
-              <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {tmpMembers.map(m => (
-                  <a key={m.member_id} href={`https://truckersmp.com/user/${m.user_id||m.member_id}`} target="_blank" rel="noreferrer" className="driver-card group">
-                    <div className="flex items-center gap-4">
-                      {m.avatar_url ? (
-                        <img src={m.avatar_url} alt="" className="h-14 w-14 rounded-full object-cover"/>
-                      ) : (
-                        <div className="avatar">{m.username.split(/\s+/).map(x=>x[0]).join('').slice(0,2)}</div>
-                      )}
-                      <div className="min-w-0">
-                        <h3 className="truncate text-lg font-black group-hover:text-red-400">{m.username}</h3>
-                        <p className="text-sm text-white/45">{m.role}</p>
-                      </div>
-                    </div>
-                    <div className="mt-5 border-t border-white/10 pt-4 text-xs text-white/45">
-                      <div>VTC MEMBER ID <b className="text-white">{m.member_id}</b></div>
-                      <div className="mt-1">TRUCKERSMP USER ID <b className="text-white">{m.user_id||'—'}</b></div>
-                    </div>
-                  </a>
-                ))}
-              </div>
-            )}
           </div>
         </section>
+
         <section id="tmp-members" className="section bg-[#0d0d0d]">
           <div className="mx-auto max-w-7xl px-5 lg:px-8">
             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
@@ -511,6 +479,26 @@ function ContactForm() {
 
 
 
+function DeliveryPortal(){
+  const [form,setForm]=useState({truckersmp_username:'',delivery_date:new Date().toISOString().slice(0,10),origin:'',destination:'',cargo:'',truck:'',trailer:'',start_km:''});
+  const [active,setActive]=useState<any|null>(null); const [endKm,setEndKm]=useState('');
+  const [busy,setBusy]=useState(false); const [message,setMessage]=useState(''); const [ok,setOk]=useState(false);
+  const distance=active&&Number(endKm)>Number(active.start_km)?Number(endKm)-Number(active.start_km):0;
+  const loadActive=async(username:string)=>{if(!username)return;try{const r=await fetch(`/api/deliveries?active=${encodeURIComponent(username)}`);const d=await r.json().catch(()=>({}));if(r.ok)setActive(d.active||null);}catch{}};
+  useEffect(()=>{const u=localStorage.getItem('vip_delivery_username')||'';if(u){setForm(f=>({...f,truckersmp_username:u}));loadActive(u);}},[]);
+  const start=async(e:React.FormEvent)=>{e.preventDefault();setBusy(true);setMessage('');setOk(false);try{const r=await fetch('/api/deliveries',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...form,action:'START'})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||d.details||'Unable to start delivery.');localStorage.setItem('vip_delivery_username',form.truckersmp_username.trim());setActive(d.delivery);setEndKm('');setOk(true);setMessage('Delivery started. Drive your route and return here when you finish.');}catch(e){setMessage(e instanceof Error?e.message:'Unable to start delivery.')}finally{setBusy(false)}};
+  const complete=async()=>{if(!active)return;setBusy(true);setMessage('');setOk(false);try{const r=await fetch('/api/deliveries',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'COMPLETE',id:active.id,end_km:Number(endKm)})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||d.details||'Unable to complete delivery.');setOk(true);setMessage(`Delivery completed — ${Number(d.distance_km).toLocaleString()} KM submitted for management approval.`);setActive(null);setEndKm('');setForm(f=>({...f,origin:'',destination:'',cargo:'',truck:'',trailer:'',start_km:''}));}catch(e){setMessage(e instanceof Error?e.message:'Unable to complete delivery.')}finally{setBusy(false)}};
+  const clearDriver=()=>{localStorage.removeItem('vip_delivery_username');setForm(f=>({...f,truckersmp_username:''}));setActive(null);setMessage('');};
+  return <section id="delivery-portal" className="section">
+    <div className="mx-auto max-w-7xl px-5 lg:px-8"><div className="section-kicker">V.I.P Delivery Software</div><div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end"><div><h2 className="section-title">START <span>YOUR DELIVERY.</span></h2><p className="mt-4 max-w-2xl text-white/55">Start a delivery before you drive, then complete it when you finish. Your KM is calculated from the odometer readings and sent to management for approval.</p></div><div className="rounded-2xl border border-red-500/20 bg-red-500/5 px-5 py-4"><div className="text-xs font-bold uppercase tracking-wider text-red-400">{active?'LIVE DELIVERY':'READY'}</div><div className="text-2xl font-black">{active?`${Number(active.start_km).toLocaleString()} KM START`:'TRACK YOUR KM'}</div></div></div>
+      {!active?<form onSubmit={start} className="mt-8 grid gap-4 rounded-2xl border border-white/10 bg-[#101010] p-5 lg:grid-cols-2 lg:p-7">
+        {[['TruckersMP Username','truckersmp_username'],['Delivery Date','delivery_date'],['Origin','origin'],['Destination','destination'],['Cargo','cargo'],['Truck','truck'],['Trailer','trailer'],['Starting KM','start_km']].map(([label,name])=><label className="field" key={name}><span>{label}</span><input required={['truckersmp_username','delivery_date','origin','destination','cargo','start_km'].includes(name)} type={name==='delivery_date'?'date':name==='start_km'?'number':'text'} min={name==='start_km'?'0':undefined} value={(form as any)[name]} onChange={e=>setForm({...form,[name]:e.target.value})} placeholder={label}/></label>)}
+        <div className="lg:col-span-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className={`text-sm ${ok?'text-emerald-400':'text-red-300'}`}>{message}</div><button disabled={busy} className="red-btn justify-center disabled:opacity-50">{busy?'STARTING...':'START DELIVERY'} <ArrowRight size={16}/></button></div>
+      </form>:<div className="mt-8 rounded-2xl border border-red-500/25 bg-red-500/5 p-5 lg:p-7"><div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between"><div><div className="text-xs font-bold uppercase tracking-[.2em] text-red-400">ACTIVE DELIVERY</div><h3 className="mt-2 text-2xl font-black">{active.origin} <span className="text-red-500">→</span> {active.destination}</h3><div className="mt-2 text-sm text-white/50">{active.truckersmp_username} · {active.cargo}{active.truck?` · ${active.truck}`:''}</div><div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3"><div className="rounded-xl border border-white/10 bg-black/20 p-4"><div className="text-xs text-white/35">START KM</div><div className="mt-1 text-xl font-black">{Number(active.start_km).toLocaleString()}</div></div><div className="rounded-xl border border-white/10 bg-black/20 p-4"><div className="text-xs text-white/35">END KM</div><div className="mt-1 text-xl font-black">{endKm?Number(endKm).toLocaleString():'—'}</div></div><div className="rounded-xl border border-white/10 bg-black/20 p-4 col-span-2 sm:col-span-1"><div className="text-xs text-white/35">DISTANCE</div><div className="mt-1 text-xl font-black text-red-400">{distance?`${distance.toLocaleString()} KM`:'—'}</div></div></div></div><div className="w-full max-w-sm"><label className="field"><span>Ending KM</span><input type="number" min={Number(active.start_km)+1} value={endKm} onChange={e=>setEndKm(e.target.value)} placeholder="Enter final odometer KM"/></label><button onClick={complete} disabled={busy||!endKm||Number(endKm)<=Number(active.start_km)} className="red-btn mt-4 w-full justify-center disabled:opacity-50">{busy?'COMPLETING...':'COMPLETE DELIVERY'} <CheckCircle2 size={16}/></button><button onClick={clearDriver} disabled={busy} className="mt-3 w-full text-xs font-bold text-white/35 hover:text-white">CHANGE DRIVER</button></div></div>{message&&<div className={`mt-5 rounded-lg border p-3 text-sm ${ok?'border-emerald-500/20 bg-emerald-500/5 text-emerald-400':'border-red-500/30 bg-red-500/10 text-red-300'}`}>{message}</div>}</div>}
+    </div>
+  </section>;
+}
+
 function DriverProgressSection(){
   const {data,loading}=useProgress();
   const goal=data?.goal_km||10000; const rows=data?.rows||[];
@@ -532,6 +520,14 @@ function TrucksBookImport(){
   return <Panel title="TRUCKSBOOK DELIVERY IMPORT"><div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end"><div><p className="text-sm text-white/45">Export your VTC deliveries from TrucksBook <b className="text-white">Log Overview → CSV</b>, then upload the CSV here. Duplicate deliveries are ignored automatically.</p><input className="mt-4 block w-full rounded-xl border border-white/10 bg-black/30 p-3 text-sm" type="file" accept=".csv,text/csv" onChange={e=>setFile(e.target.files?.[0]||null)}/></div><button onClick={importCSV} disabled={!file||busy} className="red-btn w-fit disabled:cursor-not-allowed disabled:opacity-50">{busy?'IMPORTING...':'IMPORT TRUCKSBOOK'} <ArrowRight size={16}/></button></div>{message&&<div className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{message}</div>}<div className="mt-4 text-xs text-white/30">TrucksBook usernames are matched to existing drivers first, then active TruckersMP members. Missing driver profiles are created automatically.</div></Panel>;
 }
 
+function DeliverySubmissions(){
+  const [items,setItems]=useState<any[]>([]); const [loading,setLoading]=useState(true); const [message,setMessage]=useState('');
+  const load=async()=>{setLoading(true);try{const r=await fetch('/api/deliveries');const d=await r.json();if(!r.ok)throw new Error(d.error||'Unable to load submissions');setItems(d.submissions||[]);}catch(e){setMessage(e instanceof Error?e.message:'Unable to load submissions.')}finally{setLoading(false)}};
+  useEffect(()=>{load()},[]);
+  const act=async(id:string,action:string)=>{setMessage('');try{const r=await fetch('/api/deliveries',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,action})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||d.details||'Unable to process delivery');await load();}catch(e){setMessage(e instanceof Error?e.message:'Unable to process delivery')}};
+  return <Panel title={`PENDING DELIVERY SUBMISSIONS (${items.length})`}>{message&&<div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{message}</div>}{loading?<div className="py-8 text-center text-white/40">Loading...</div>:items.length===0?<div className="py-8 text-center text-white/40">No pending driver submissions.</div>:<div className="space-y-3">{items.map(x=><div key={x.id} className="rounded-xl border border-white/5 bg-white/[.02] p-4"><div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><div><b>{x.truckersmp_username}</b><div className="mt-1 text-sm text-white/60">{x.origin} → {x.destination} · {x.cargo}</div><div className="mt-1 text-xs text-white/35">{x.delivery_date} · {Number(x.start_km).toLocaleString()} → {Number(x.end_km).toLocaleString()} KM · <span className="text-white">{Number(x.distance_km).toLocaleString()} KM</span>{x.truck?` · ${x.truck}`:''}</div></div><div className="flex gap-2"><RowButton onClick={()=>act(x.id,'APPROVE')}>APPROVE</RowButton><RowButton onClick={()=>act(x.id,'REJECT')}>REJECT</RowButton></div></div></div>)}</div>}</Panel>;
+}
+
 function ProgressManagement({drivers}:{drivers:Driver[]}){
   const [records,setRecords]=useState<DeliveryRecord[]>([]); const [goal,setGoal]=useState(10000); const [loading,setLoading]=useState(true); const [message,setMessage]=useState('');
   const [form,setForm]=useState({driver_id:drivers[0]?.id||'',delivery_date:new Date().toISOString().slice(0,10),origin:'',destination:'',cargo:'',distance_km:''});
@@ -539,7 +535,7 @@ function ProgressManagement({drivers}:{drivers:Driver[]}){
   useEffect(()=>{load();},[drivers.length]);
   const save=async()=>{setMessage('');try{const r=await fetch('/api/progress',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...form,distance_km:Number(form.distance_km)})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Unable to save delivery');setForm(f=>({...f,origin:'',destination:'',cargo:'',distance_km:''}));await load();}catch(e){setMessage(e instanceof Error?e.message:'Unable to save delivery.')}};
   const remove=async(id:string)=>{if(!confirm('Delete this delivery record?'))return;try{const r=await fetch(`/api/progress?id=${encodeURIComponent(id)}`,{method:'DELETE'});const d=await r.json();if(!r.ok)throw new Error(d.error||'Unable to delete');await load();}catch(e){setMessage(e instanceof Error?e.message:'Unable to delete delivery.')}};
-  return <div className="space-y-6"><TrucksBookImport/><div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-6"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><div className="text-xs font-bold uppercase tracking-[.22em] text-red-400">Monthly target</div><h2 className="mt-1 text-3xl font-black">DELIVERIES & PROGRESS</h2><p className="mt-2 text-sm text-white/45">Add each completed delivery here. The public website automatically calculates each driver's monthly progress.</p></div><div className="text-3xl font-black text-red-500">{goal.toLocaleString()} KM</div></div></div>
+  return <div className="space-y-6"><DeliverySubmissions/><TrucksBookImport/><div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-6"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><div className="text-xs font-bold uppercase tracking-[.22em] text-red-400">Monthly target</div><h2 className="mt-1 text-3xl font-black">DELIVERIES & PROGRESS</h2><p className="mt-2 text-sm text-white/45">Add each completed delivery here. The public website automatically calculates each driver's monthly progress.</p></div><div className="text-3xl font-black text-red-500">{goal.toLocaleString()} KM</div></div></div>
   <div className="grid gap-6 xl:grid-cols-[.75fr_1.25fr]"><Panel title="ADD DELIVERY"><div className="grid gap-3"><label className="field"><span>Driver</span><select value={form.driver_id} onChange={e=>setForm({...form,driver_id:e.target.value})}>{drivers.map(d=><option key={d.id} value={d.id}>{d.name} ({d.id})</option>)}</select></label><label className="field"><span>Delivery Date</span><input type="date" value={form.delivery_date} onChange={e=>setForm({...form,delivery_date:e.target.value})}/></label><label className="field"><span>Origin</span><input value={form.origin} onChange={e=>setForm({...form,origin:e.target.value})} placeholder="London"/></label><label className="field"><span>Destination</span><input value={form.destination} onChange={e=>setForm({...form,destination:e.target.value})} placeholder="Berlin"/></label><label className="field"><span>Cargo</span><input value={form.cargo} onChange={e=>setForm({...form,cargo:e.target.value})} placeholder="General Cargo"/></label><label className="field"><span>Distance (KM)</span><input type="number" min="1" value={form.distance_km} onChange={e=>setForm({...form,distance_km:e.target.value})} placeholder="500"/></label>{message&&<div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{message}</div>}<button onClick={save} disabled={!drivers.length} className="red-btn justify-center">ADD DELIVERY <ArrowRight size={16}/></button></div></Panel>
   <Panel title={`THIS MONTH'S DELIVERY RECORDS (${records.length})`}>{loading?<div className="py-8 text-center text-white/40">Loading...</div>:records.length===0?<div className="py-8 text-center text-white/40">No delivery records yet.</div>:<div className="space-y-2">{records.map(r=><div key={r.id} className="flex flex-col gap-3 rounded-xl border border-white/5 bg-white/[.02] p-4 sm:flex-row sm:items-center sm:justify-between"><div><b>{r.driver_name}</b><div className="mt-1 text-xs text-white/40">{r.delivery_date} · {r.origin||'—'} → {r.destination||'—'} · {r.cargo||'—'} · <span className="text-white">{Number(r.distance_km).toLocaleString()} KM</span></div></div><RowButton onClick={()=>remove(r.id)}>DELETE</RowButton></div>)}</div>}</Panel></div></div>;
 }
@@ -624,7 +620,7 @@ function TruckersMPManagement(){
 }
 
 function Dashboard({stats,setTab}:{stats:(string|number)[][];setTab:(x:"dashboard"|"drivers"|"fleet"|"convoys"|"news"|"gallery"|"progress"|"tmp-members"|"trucksbook")=>void}) {
-  return <div><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{stats.map(([n,l])=><div className="rounded-2xl border border-white/10 bg-[#111] p-6" key={String(l)}><div className="text-4xl font-black text-red-500">{n}</div><div className="mt-2 text-sm text-white/45">{l}</div></div>)}</div><div className="mt-8 grid gap-5 md:grid-cols-2"><AdminQuick title="Manage Fleet" text="Track trucks and vehicle assignments." onClick={()=>setTab("fleet")}/><AdminQuick title="Manage Convoys" text="Keep upcoming event information current." onClick={()=>setTab("convoys")}/><AdminQuick title="Manage News" text="Publish announcements and recruitment updates." onClick={()=>setTab("news")}/><AdminQuick title="Manage Gallery" text="Add, edit and remove VTC photos stored in the database." onClick={()=>setTab("gallery")}/><AdminQuick title="DELIVERIES & PROGRESS" text="Log deliveries, kilometres and track the 10,000 KM monthly target for every driver." onClick={()=>setTab("progress")}/><AdminQuick title="TRUCKSBOOK" text="Import delivery records exported from TrucksBook Log Overview and send them into the monthly progress system." onClick={()=>setTab("trucksbook")}/><AdminQuick title="TRUCKERSMP MEMBERS" text="Synchronize the official TruckersMP VTC member roster automatically." onClick={()=>setTab("tmp-members")}/></div></div>;
+  return <div><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{stats.map(([n,l])=><div className="rounded-2xl border border-white/10 bg-[#111] p-6" key={String(l)}><div className="text-4xl font-black text-red-500">{n}</div><div className="mt-2 text-sm text-white/45">{l}</div></div>)}</div><div className="mt-8 grid gap-5 md:grid-cols-2"><AdminQuick title="Manage Fleet" text="Track trucks and vehicle assignments." onClick={()=>setTab("fleet")}/><AdminQuick title="Manage Convoys" text="Keep upcoming event information current." onClick={()=>setTab("convoys")}/><AdminQuick title="Manage News" text="Publish announcements and recruitment updates." onClick={()=>setTab("news")}/><AdminQuick title="Manage Gallery" text="Add, edit and remove VTC photos stored in the database." onClick={()=>setTab("gallery")}/><AdminQuick title="DELIVERY SOFTWARE" text="Review driver-submitted deliveries and approve verified kilometres into the monthly progress system." onClick={()=>setTab("progress")}/><AdminQuick title="DELIVERIES & PROGRESS" text="Log deliveries, kilometres and track the 10,000 KM monthly target for every driver." onClick={()=>setTab("progress")}/><AdminQuick title="TRUCKSBOOK" text="Import delivery records exported from TrucksBook Log Overview and send them into the monthly progress system." onClick={()=>setTab("trucksbook")}/><AdminQuick title="TRUCKERSMP MEMBERS" text="Synchronize the official TruckersMP VTC member roster automatically." onClick={()=>setTab("tmp-members")}/></div></div>;
 }
 function AdminQuick({title,text,onClick}:{title:string;text:string;onClick:()=>void}) { return <button onClick={onClick} className="rounded-2xl border border-white/10 bg-[#101010] p-6 text-left hover:border-red-500/30"><div className="text-xl font-black">{title}</div><p className="mt-2 text-sm text-white/45">{text}</p><div className="mt-5 text-sm font-bold text-red-400">OPEN →</div></button>; }
 function Panel({title,children}:{title:string;children:React.ReactNode}) { return <div className="rounded-2xl border border-white/10 bg-[#101010] p-5 lg:p-6"><h2 className="text-xl font-black">{title}</h2>{children}</div>; }

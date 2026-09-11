@@ -28,3 +28,8 @@ The supplied logo is `public/assets/logo.png` and is used as the website logo an
 # viplog
 # viplog
 # viplogistics
+
+## V.I.P Delivery Software
+Drivers can submit completed deliveries from the public **Delivery Portal**. Submissions are stored as `PENDING` and must be approved by management before they count toward the 10,000 KM monthly progress target. Management reviews them under **Admin → Deliveries & Progress**. TrucksBook CSV import remains available as a backup/legacy import method.
+
+Run the additional SQL in `supabase-schema.sql` to create the `delivery_submissions` table before using the portal.
