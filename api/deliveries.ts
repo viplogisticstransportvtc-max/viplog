@@ -193,6 +193,24 @@ export async function PATCH(request:Request){
         return json({ok:true,distance_km,submission_id:result.submissionId,status:"APPROVED",automatic:true});
       }catch(e){return json({error:String(e instanceof Error?e.message:e)},500);}
     }
+    if(action==="CANCEL"){
+      const driver=await currentDriver(request);
+      if(!driver) return json({error:"Driver login required."},401);
+      const id=clean(body.id,80);
+      if(!id) return json({error:"Missing active delivery."},400);
+      const find=await supabase(`active_deliveries?id=eq.${encodeURIComponent(id)}&status=eq.ACTIVE&select=*`);
+      if(!find.ok)return json({error:"Unable to find active delivery.",details:await find.text()},500);
+      const rows=await find.json();
+      if(!rows.length)return json({ok:true,status:"CANCELLED",already_cancelled:true});
+      const a=rows[0];
+      if(String(a.truckersmp_username).toLowerCase()!==String(driver.truckersmp_username).toLowerCase()) return json({error:"You can only cancel your own delivery."},403);
+      // A cancelled TruckTel job must never count as a completed delivery.
+      // Remove the active row so the desktop client and admin view immediately
+      // stop showing it, without creating a delivery record or KM credit.
+      const removed=await supabase(`active_deliveries?id=eq.${encodeURIComponent(id)}&status=eq.ACTIVE`,{method:"DELETE"});
+      if(!removed.ok)return json({error:"Unable to cancel the active delivery.",details:await removed.text()},500);
+      return json({ok:true,status:"CANCELLED",cancelled:true});
+    }
     if(action==="COMPLETE"){
       const driver=await currentDriver(request);
       if(!driver) return json({error:"Driver login required."},401);
