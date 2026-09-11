@@ -92,3 +92,21 @@ create table if not exists public.delivery_records (
 create index if not exists delivery_records_driver_date_idx on public.delivery_records(driver_id, delivery_date desc);
 create index if not exists delivery_records_date_idx on public.delivery_records(delivery_date desc);
 alter table public.delivery_records enable row level security;
+
+
+-- Automatically synchronized TruckersMP VTC members.
+create table if not exists public.truckersmp_members (
+  member_id text primary key,
+  user_id text,
+  username text not null,
+  avatar_url text not null default '',
+  role text not null default 'Member',
+  joined_at timestamptz,
+  active boolean not null default true,
+  last_synced_at timestamptz not null default now(),
+  raw jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+create index if not exists truckersmp_members_active_idx on public.truckersmp_members(active, username);
+create index if not exists truckersmp_members_user_idx on public.truckersmp_members(user_id);
+alter table public.truckersmp_members enable row level security;

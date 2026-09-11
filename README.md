@@ -27,3 +27,4 @@ The webhook is used only by the server-side `/api/apply` function and is never p
 The supplied logo is `public/assets/logo.png` and is used as the website logo and favicon.
 # viplog
 # viplog
+# viplogistics
