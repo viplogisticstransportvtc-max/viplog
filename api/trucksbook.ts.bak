@@ -131,45 +131,13 @@ export async function POST(request:Request){
   }
 
   if(records.length){
-   // Try the full TrucksBook-aware schema first. If an older database does not
-   // have external_id/source yet, retry with the original delivery_records shape
-   // so existing installations can still import deliveries.
-   let ins=await supabase("delivery_records?on_conflict=external_id",{
+   const ins=await supabase("delivery_records?on_conflict=external_id",{
     method:"POST",
     body:JSON.stringify(records),
     headers:{Prefer:"resolution=ignore-duplicates,return=representation"}
    });
-
-   if(!ins.ok){
-    const firstError=await ins.text();
-    console.error("TrucksBook import (extended schema):",firstError);
-    const looksLikeMissingImportColumns=/external_id|source|column .* does not exist|42703/i.test(firstError);
-    if(looksLikeMissingImportColumns){
-     const legacyRecords=records.map(({external_id,source,...record})=>record);
-     ins=await supabase("delivery_records",{
-      method:"POST",
-      body:JSON.stringify(legacyRecords),
-      headers:{Prefer:"return=representation"}
-     });
-     if(!ins.ok){
-      const legacyError=await ins.text();
-      console.error("TrucksBook import (legacy schema):",legacyError);
-      return json({
-       error:"Supabase rejected the delivery records.",
-       details:legacyError,
-       hint:"Run the TrucksBook delivery migration in supabase-schema.sql, then try the import again."
-      },500);
-     }
-    }else{
-     return json({
-      error:"Supabase rejected the delivery records.",
-      details:firstError,
-      hint:"Check that delivery_records exists, driver_id matches an existing driver, and the TrucksBook migration has been run."
-     },500);
-    }
-   }
-   const inserted=await ins.json();
-   imported=Array.isArray(inserted)?inserted.length:0;
+   if(!ins.ok){console.error(await ins.text());return json({error:"Unable to import delivery records into Supabase."},500);}
+   imported=(await ins.json()).length;
   }
 
   return json({ok:true,imported,skipped,unmatched,unmatched_names:Array.from(unmatchedNames).slice(0,50),total_rows:rows.length-1,detected_headers:headers});
