@@ -164,18 +164,23 @@ function App() {
               <div className="nav-dropdown-menu">
                 <a href="#requirements" className="nav-dropdown-item">REQUIREMENTS<span>What you need to join</span></a>
                 <a href="#fleet" className="nav-dropdown-item">FLEET<span>Our trucks &amp; setup</span></a>
-                <a href="#drivers" className="nav-dropdown-item">DRIVERS<span>Meet our team</span></a>
+                <a href="#tmp-members" className="nav-dropdown-item">TMP MEMBERS<span>Official VTC roster</span></a>
+                <a href="#progress" className="nav-dropdown-item">DRIVER PROGRESS<span>Monthly driving targets</span></a>
               </div>
             </div>
 
             <div className="nav-dropdown">
-              <button className="nav-link nav-dropdown-trigger" type="button">COMMUNITY <ChevronDown size={13}/></button>
-              <div className="nav-dropdown-menu nav-dropdown-wide">
-                <a href="#tmp-members" className="nav-dropdown-item">TMP MEMBERS<span>Live VTC roster</span></a>
-                <a href="#progress" className="nav-dropdown-item">PROGRESS<span>Monthly driving targets</span></a>
-                <a href="#convoys" className="nav-dropdown-item">CONVOYS<span>Upcoming events</span></a>
+              <button className="nav-link nav-dropdown-trigger" type="button">EVENTS <ChevronDown size={13}/></button>
+              <div className="nav-dropdown-menu nav-dropdown-compact">
+                <a href="#convoys" className="nav-dropdown-item">CONVOYS<span>Upcoming VTC events</span></a>
+              </div>
+            </div>
+
+            <div className="nav-dropdown">
+              <button className="nav-link nav-dropdown-trigger" type="button">MEDIA <ChevronDown size={13}/></button>
+              <div className="nav-dropdown-menu nav-dropdown-compact">
+                <a href="#news" className="nav-dropdown-item">NEWS<span>Latest VTC announcements</span></a>
                 <a href="#gallery" className="nav-dropdown-item">GALLERY<span>Our trucking moments</span></a>
-                <a href="#news" className="nav-dropdown-item">NEWS<span>Latest announcements</span></a>
               </div>
             </div>
 
@@ -201,13 +206,13 @@ function App() {
             <div className="mobile-nav-label">VTC</div>
             <a href="#requirements" onClick={closeMenu} className="mobile-nav-sublink">Requirements</a>
             <a href="#fleet" onClick={closeMenu} className="mobile-nav-sublink">Fleet</a>
-            <a href="#drivers" onClick={closeMenu} className="mobile-nav-sublink">Drivers</a>
-            <div className="mobile-nav-label">COMMUNITY</div>
             <a href="#tmp-members" onClick={closeMenu} className="mobile-nav-sublink">TMP Members</a>
-            <a href="#progress" onClick={closeMenu} className="mobile-nav-sublink">Deliveries Progress</a>
+            <a href="#progress" onClick={closeMenu} className="mobile-nav-sublink">Driver Progress</a>
+            <div className="mobile-nav-label">EVENTS</div>
             <a href="#convoys" onClick={closeMenu} className="mobile-nav-sublink">Convoys</a>
-            <a href="#gallery" onClick={closeMenu} className="mobile-nav-sublink">Gallery</a>
+            <div className="mobile-nav-label">MEDIA</div>
             <a href="#news" onClick={closeMenu} className="mobile-nav-sublink">News</a>
+            <a href="#gallery" onClick={closeMenu} className="mobile-nav-sublink">Gallery</a>
             <a href="#contact" onClick={closeMenu} className="mobile-nav-link">CONTACT</a>
             <a href="#application" onClick={closeMenu} className="red-btn mt-5 w-full justify-center">JOIN THE VTC <ArrowRight size={16}/></a>
           </div>
