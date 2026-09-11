@@ -7,6 +7,18 @@ import {
 } from "lucide-react";
 import "./index.css";
 
+async function readApiResponse(r: Response) {
+  const text = await r.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return {
+      error: text.replace(/\s+/g, ' ').slice(0, 500) || `Server returned HTTP ${r.status}.`
+    };
+  }
+}
+
 export const VTC_CONFIG = {
   name: "V.I.P LOGISTICS TRANSPORT VTC",
   shortName: "VIP LOGISTICS",
