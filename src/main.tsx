@@ -156,7 +156,7 @@ function App() {
           </a>
 
           <nav className="hidden items-center gap-5 xl:flex">
-            {["Home","About Us","Requirements","Fleet","TMP Members","Deliveries Progress","Convoys","Gallery","News","Contact"].map((item) => (
+            {["Home","About Us","Requirements","Fleet","Drivers","TMP Members","Deliveries Progress","Convoys","Gallery","News","Contact"].map((item) => (
               <a key={item} href={`#${item.toLowerCase().replace(/ /g, "-")}`} className="nav-link">{item}</a>
             ))}
           </nav>
@@ -175,7 +175,7 @@ function App() {
 
         {menuOpen && (
           <div className="border-t border-white/10 bg-[#0d0d0d] px-5 py-4 lg:hidden">
-            {["Home","About Us","Requirements","Fleet","TMP Members","Deliveries Progress","Convoys","Gallery","News","Contact"].map((item) => (
+            {["Home","About Us","Requirements","Fleet","Drivers","TMP Members","Deliveries Progress","Convoys","Gallery","News","Contact"].map((item) => (
               <a key={item} href={`#${item.toLowerCase().replace(/ /g, "-")}`} onClick={closeMenu} className="block border-b border-white/5 py-3 text-sm font-semibold">{item}</a>
             ))}
             <a href="#application" onClick={closeMenu} className="red-btn mt-4 w-full justify-center">JOIN THE VTC <ArrowRight size={16}/></a>
@@ -296,6 +296,14 @@ function App() {
 
         <DriverProgressSection />
 
+        <section id="drivers" className="section">
+          <div className="mx-auto max-w-7xl px-5 lg:px-8"><div className="section-kicker">The people</div><h2 className="section-title">MEET OUR <span>DRIVERS.</span></h2>
+            <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {store.drivers.map(({id,name,rank,flag,km}) => <div className="driver-card" key={id}><div className="avatar">{name.split(" ").map(x=>x[0]).join("")}</div><div className="mt-5 flex items-center justify-between"><span className="text-xs font-bold text-red-400">{id}</span><span>{flag}</span></div><h3 className="mt-2 text-xl font-black">{name}</h3><p className="text-sm text-white/45">{rank}</p><div className="mt-5 border-t border-white/10 pt-4 text-sm font-bold">{km}</div></div>)}
+            </div>
+          </div>
+        </section>
+
         <section id="tmp-members" className="section bg-[#0d0d0d]">
           <div className="mx-auto max-w-7xl px-5 lg:px-8">
             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
@@ -356,7 +364,7 @@ function App() {
       <footer className="border-t border-white/10 bg-[#050505]">
         <div className="mx-auto grid max-w-7xl gap-10 px-5 py-14 md:grid-cols-4 lg:px-8">
           <div className="md:col-span-2"><img src={VTC_CONFIG.logo} alt={VTC_CONFIG.name} className="h-20 w-20 rounded-full object-contain"/><h3 className="mt-4 text-xl font-black">{VTC_CONFIG.name}</h3><p className="mt-2 text-sm font-bold uppercase tracking-[.22em] text-red-400">{VTC_CONFIG.slogan}</p><p className="mt-4 max-w-md text-sm leading-6 text-white/40">Professional on the road. United as a team.</p></div>
-          <div><h4 className="footer-head">VTC</h4>{["About Us","Requirements","Fleet"].map(x=><a className="footer-link" href={`#${x.toLowerCase().replace(/ /g, "-")}`} key={x}>{x}</a>)}</div>
+          <div><h4 className="footer-head">VTC</h4>{["About Us","Requirements","Drivers","Fleet"].map(x=><a className="footer-link" href={`#${x.toLowerCase().replace(/ /g, "-")}`} key={x}>{x}</a>)}</div>
           <div><h4 className="footer-head">COMMUNITY</h4>{["Discord","Convoys","Gallery","News"].map(x=><a className="footer-link" href={x==="Discord"?VTC_CONFIG.discord:`#${x.toLowerCase()}`} key={x}>{x}</a>)}</div>
         </div>
         <div className="border-t border-white/5 px-5 py-6 text-center text-xs text-white/30">© AgendaSoft 2026 V.I.P LOGISTICS TRANSPORT VTC. All Rights Reserved. · This is a virtual trucking company and is not affiliated with TruckersMP unless explicitly stated.</div>
@@ -454,7 +462,7 @@ function DriverProgressSection(){
   const totalKm=rows.reduce((a,r)=>a+r.distance_km,0); const totalDeliveries=rows.reduce((a,r)=>a+r.deliveries,0); const met=rows.filter(r=>r.goal_met).length;
   return <section id="deliveries-progress" className="section bg-[#0d0d0d] border-y border-red-500/10">
     <div className="mx-auto max-w-7xl px-5 lg:px-8">
-      <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end"><div><div className="section-kicker">Monthly Driver Tracking</div><h2 className="section-title">DELIVERIES <span>& PROGRESS.</span></h2><p className="mt-4 max-w-2xl text-white/55">Track every driver's deliveries and kilometres toward the <b className="text-white">10,000 KM monthly target</b>. Progress resets automatically at the start of each month.</p></div><a href="#tmp-members" className="red-btn w-fit">VIEW MEMBERS <ArrowRight size={16}/></a></div>
+      <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end"><div><div className="section-kicker">Monthly Driver Tracking</div><h2 className="section-title">DELIVERIES <span>& PROGRESS.</span></h2><p className="mt-4 max-w-2xl text-white/55">Track every driver's deliveries and kilometres toward the <b className="text-white">10,000 KM monthly target</b>. Progress resets automatically at the start of each month.</p></div><a href="#drivers" className="red-btn w-fit">VIEW DRIVERS <ArrowRight size={16}/></a></div>
       <div className="mt-10 grid gap-4 sm:grid-cols-3"><div className="rounded-2xl border border-white/10 bg-[#111] p-6"><div className="text-3xl font-black text-red-500">{loading?'—':totalDeliveries}</div><div className="mt-2 text-sm text-white/45">DELIVERIES THIS MONTH</div></div><div className="rounded-2xl border border-white/10 bg-[#111] p-6"><div className="text-3xl font-black text-red-500">{loading?'—':totalKm.toLocaleString()} KM</div><div className="mt-2 text-sm text-white/45">TOTAL DISTANCE</div></div><div className="rounded-2xl border border-white/10 bg-[#111] p-6"><div className="text-3xl font-black text-red-500">{loading?'—':met}</div><div className="mt-2 text-sm text-white/45">DRIVERS AT 10,000 KM</div></div></div>
       <div className="mt-8 rounded-2xl border border-white/10 bg-[#101010] p-5 lg:p-7"><div className="flex items-center justify-between gap-4"><div><div className="text-xs font-bold uppercase tracking-[.22em] text-red-400">{data?.month||'CURRENT MONTH'}</div><h3 className="mt-1 text-2xl font-black">DRIVER DELIVERY LEADERBOARD</h3></div><div className="text-right text-xs text-white/40">GOAL <b className="text-white">{goal.toLocaleString()} KM</b></div></div>
       {loading?<div className="py-12 text-center text-white/40">Loading delivery progress...</div>:rows.length===0?<div className="mt-6 rounded-xl border border-dashed border-white/10 p-10 text-center"><Route className="mx-auto text-red-500" size={36}/><h4 className="mt-4 text-lg font-black">NO DELIVERIES LOGGED YET</h4><p className="mt-2 text-sm text-white/40">Management can add delivery records from the admin panel under DELIVERIES & PROGRESS.</p></div>:<div className="mt-6 space-y-4">{rows.map((r,i)=><div key={r.driver_id} className="rounded-xl border border-white/5 bg-white/[.02] p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-500/10 text-sm font-black text-red-400">{String(i+1).padStart(2,'0')}</div><div><b>{r.driver_name}</b><div className="text-xs text-white/40">{r.deliveries} deliveries · {r.distance_km.toLocaleString()} KM</div></div></div><div className="text-sm font-black">{r.progress}% {r.goal_met?'✓':''}</div></div><div className="mt-3 h-3 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-red-500 transition-all" style={{width:`${r.progress}%`}}/></div><div className="mt-2 flex justify-between text-[11px] uppercase tracking-wider text-white/30"><span>0 KM</span><span>{Math.min(r.distance_km,goal).toLocaleString()} / {goal.toLocaleString()} KM</span></div></div>)}</div>}
@@ -477,7 +485,7 @@ function ProgressManagement({drivers}:{drivers:Driver[]}){
 
 function AdminApp() {
   const [store, , refreshStore] = useVtcStore(true);
-  const [tab, setTab] = useState<"dashboard"|"fleet"|"convoys"|"news"|"gallery"|"progress"|"tmp-members">("dashboard");
+  const [tab, setTab] = useState<"dashboard"|"drivers"|"fleet"|"convoys"|"news"|"gallery"|"progress"|"tmp-members">("dashboard");
   const [loggedIn, setLoggedIn] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -496,6 +504,7 @@ function AdminApp() {
     } catch (err) { setMessage(err instanceof Error ? err.message : 'Login failed.'); }
   };
   const logout = async () => { await fetch('/api/admin', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'logout'})}).catch(()=>{}); setLoggedIn(false); };
+  const reset = async () => { if (!confirm("Reset all drivers, fleet, convoys and news to the original demo data?")) return; const r=await fetch("/api/admin",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"reset-demo"})}); if(!r.ok){const d=await r.json().catch(()=>({})); setMessage(d.error||"Unable to reset demo data."); return;} await refreshStore(); };
 
   const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
   const loadGallery = async () => { const r=await fetch('/api/admin?action=gallery'); if(r.ok){ const d=await r.json(); setGalleryItems(d.items || []); } };
@@ -503,10 +512,11 @@ function AdminApp() {
 
   if (!loggedIn) return <div className="min-h-screen bg-[#080808] px-5 py-16 text-white"><div className="mx-auto max-w-md"><a href="/" className="text-sm text-red-400">← Back to website</a><div className="form-card mt-6"><img src={VTC_CONFIG.logo} className="mx-auto h-24 w-24 rounded-full"/><h1 className="mt-6 text-center text-3xl font-black">VTC MANAGEMENT</h1><p className="mt-2 text-center text-sm text-white/45">V.I.P LOGISTICS TRANSPORT VTC</p><form onSubmit={login} className="mt-8 grid gap-4"><label className="field"><span>Admin Username</span><input value={username} onChange={e=>setUsername(e.target.value)} placeholder="Enter username" autoComplete="username"/></label><label className="field"><span>Admin Password</span><input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Enter password" autoComplete="current-password"/></label>{message && <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{message}</div>}<button className="red-btn w-full justify-center">LOGIN <ArrowRight size={16}/></button></form><p className="mt-5 text-center text-xs text-white/30">Secure server-side authentication. All management content is stored in Supabase.</p></div></div></div>;
   const stats = [
-    [store.fleet.length, "Fleet Vehicles"], [store.convoys.length, "Convoys"], [store.news.length, "News Posts"], [galleryItems.length, "Gallery Images"]
+    [store.drivers.length, "Drivers"], [store.fleet.length, "Fleet Vehicles"], [store.convoys.length, "Convoys"], [store.news.length, "News Posts"], [galleryItems.length, "Gallery Images"]
   ];
   const adminTabs = [
     { key: "dashboard", label: "Dashboard" },
+    { key: "drivers", label: "Drivers" },
     { key: "fleet", label: "Fleet" },
     { key: "convoys", label: "Convoys" },
     { key: "news", label: "News" },
@@ -519,6 +529,7 @@ function AdminApp() {
     <main className="lg:ml-64"><header className="sticky top-0 z-20 border-b border-white/10 bg-[#080808]/85 px-5 py-4 backdrop-blur-xl lg:px-8"><div className="flex items-center justify-between"><div><div className="text-xs font-bold uppercase tracking-[.25em] text-red-400">VTC Management</div><h1 className="mt-1 text-2xl font-black">{tab[0].toUpperCase()+tab.slice(1)}</h1></div></div><div className="mt-4 flex gap-2 overflow-x-auto lg:hidden">{adminTabs.map(({key,label})=><button key={key} onClick={()=>setTab(key as typeof tab)} className={`whitespace-nowrap rounded-lg px-3 py-2 text-xs font-bold ${tab===key?"bg-red-600":"bg-white/5 text-white/55"}`}>{label}</button>)}</div></header>
     <div className="p-5 lg:p-8">
       {tab==="dashboard" && <Dashboard stats={stats} setTab={setTab} />}
+      {tab==="drivers" && <CrudDrivers store={store} refresh={refreshStore} />}
       {tab==="fleet" && <CrudFleet store={store} refresh={refreshStore} />}
       {tab==="convoys" && <CrudConvoys store={store} refresh={refreshStore} />}
       {tab==="news" && <CrudNews store={store} refresh={refreshStore} />}
@@ -540,7 +551,7 @@ function TruckersMPManagement(){
   </div>;
 }
 
-function Dashboard({stats,setTab}:{stats:(string|number)[][];setTab:(x:"dashboard"|"fleet"|"convoys"|"news"|"gallery"|"progress"|"tmp-members")=>void}) {
+function Dashboard({stats,setTab}:{stats:(string|number)[][];setTab:(x:"dashboard"|"drivers"|"fleet"|"convoys"|"news"|"gallery"|"progress"|"tmp-members")=>void}) {
   return <div><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{stats.map(([n,l])=><div className="rounded-2xl border border-white/10 bg-[#111] p-6" key={String(l)}><div className="text-4xl font-black text-red-500">{n}</div><div className="mt-2 text-sm text-white/45">{l}</div></div>)}</div><div className="mt-8 grid gap-5 md:grid-cols-2"><AdminQuick title="Manage Fleet" text="Track trucks and vehicle assignments." onClick={()=>setTab("fleet")}/><AdminQuick title="Manage Convoys" text="Keep upcoming event information current." onClick={()=>setTab("convoys")}/><AdminQuick title="Manage News" text="Publish announcements and recruitment updates." onClick={()=>setTab("news")}/><AdminQuick title="Manage Gallery" text="Add, edit and remove VTC photos stored in the database." onClick={()=>setTab("gallery")}/><AdminQuick title="DELIVERIES & PROGRESS" text="Log deliveries, kilometres and track the 10,000 KM monthly target for every driver." onClick={()=>setTab("progress")}/><AdminQuick title="TRUCKERSMP MEMBERS" text="Synchronize the official TruckersMP VTC member roster automatically." onClick={()=>setTab("tmp-members")}/></div></div>;
 }
 function AdminQuick({title,text,onClick}:{title:string;text:string;onClick:()=>void}) { return <button onClick={onClick} className="rounded-2xl border border-white/10 bg-[#101010] p-6 text-left hover:border-red-500/30"><div className="text-xl font-black">{title}</div><p className="mt-2 text-sm text-white/45">{text}</p><div className="mt-5 text-sm font-bold text-red-400">OPEN →</div></button>; }
@@ -552,6 +563,12 @@ async function adminRequest(body:any, method="POST", query="") {
   const d=await r.json().catch(()=>({}));
   if(!r.ok) throw new Error(d.error||d.debug||"Request failed.");
   return d;
+}
+function CrudDrivers({store,refresh}:{store:Store;refresh:()=>Promise<void>}) {
+  const blank:Driver={id:"",name:"",rank:"Driver",flag:"🌍",km:"0 KM"}; const [form,setForm]=useState(blank); const [editing,setEditing]=useState<string|null>(null); const [message,setMessage]=useState("");
+  const save=async()=>{setMessage("");if(!form.id||!form.name){setMessage("Driver ID and name are required.");return;}try{if(editing) await adminRequest({entity:"drivers",id:editing,...form},"PUT");else await adminRequest({action:"create-content",entity:"drivers",...form});setForm(blank);setEditing(null);await refresh();}catch(e){setMessage(e instanceof Error?e.message:"Unable to save driver.");}};
+  const remove=async(id:string)=>{if(!confirm("Delete this driver?"))return;try{await adminRequest({},"DELETE",`?entity=drivers&id=${encodeURIComponent(id)}`);await refresh();}catch(e){setMessage(e instanceof Error?e.message:"Unable to delete driver.");}};
+  return <div className="grid gap-6 xl:grid-cols-[.75fr_1.25fr]"><Panel title={editing?"Edit Driver":"Add Driver"}><div className="grid gap-3">{([['id','Driver ID'],['name','Name'],['rank','Rank'],['flag','Country Flag'],['km','Kilometres']] as const).map(([k,l])=><label className="field" key={k}><span>{l}</span><input value={form[k]} disabled={!!editing&&k==='id'} onChange={e=>setForm({...form,[k]:e.target.value})}/></label>)}{message&&<div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{message}</div>}<button onClick={save} className="red-btn mt-2 justify-center">{editing?"SAVE CHANGES":"ADD DRIVER"}</button>{editing&&<button onClick={()=>{setEditing(null);setForm(blank)}} className="text-sm text-white/40">Cancel</button>}</div></Panel><Panel title={`Drivers (${store.drivers.length})`}><div className="space-y-2">{store.drivers.map(d=><div key={d.id} className="flex flex-col justify-between gap-3 rounded-xl border border-white/5 bg-white/[.02] p-4 sm:flex-row sm:items-center"><div><b>{d.name}</b><div className="text-xs text-white/40">{d.id} · {d.rank} · {d.flag} · {d.km}</div></div><div className="flex gap-2"><RowButton onClick={()=>{setEditing(d.id);setForm(d)}}>EDIT</RowButton><RowButton onClick={()=>remove(d.id)}>DELETE</RowButton></div></div>)}</div></Panel></div>;
 }
 function CrudFleet({store,refresh}:{store:Store;refresh:()=>Promise<void>}) {
   const blank:FleetItem={make:"",model:"",id:"",image:""}; const [form,setForm]=useState(blank); const [editing,setEditing]=useState<string|null>(null); const [message,setMessage]=useState("");
