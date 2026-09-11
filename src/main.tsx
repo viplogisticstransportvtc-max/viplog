@@ -297,13 +297,46 @@ function App() {
         <DriverProgressSection />
 
         <section id="drivers" className="section">
-          <div className="mx-auto max-w-7xl px-5 lg:px-8"><div className="section-kicker">The people</div><h2 className="section-title">MEET OUR <span>DRIVERS.</span></h2>
-            <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {store.drivers.map(({id,name,rank,flag,km}) => <div className="driver-card" key={id}><div className="avatar">{name.split(" ").map(x=>x[0]).join("")}</div><div className="mt-5 flex items-center justify-between"><span className="text-xs font-bold text-red-400">{id}</span><span>{flag}</span></div><h3 className="mt-2 text-xl font-black">{name}</h3><p className="text-sm text-white/45">{rank}</p><div className="mt-5 border-t border-white/10 pt-4 text-sm font-bold">{km}</div></div>)}
+          <div className="mx-auto max-w-7xl px-5 lg:px-8">
+            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+              <div>
+                <div className="section-kicker">Live VTC roster</div>
+                <h2 className="section-title">MEET OUR <span>DRIVERS.</span></h2>
+                <p className="mt-3 max-w-2xl text-white/50">This Drivers panel is synchronized with the official TruckersMP VTC roster. Driver names, roles and avatars update automatically after each sync.</p>
+              </div>
+              <a href="#tmp-members" className="outline-btn w-fit">VIEW TMP MEMBERS <ExternalLink size={15}/></a>
             </div>
+
+            {tmpMembers.length===0 ? (
+              <div className="mt-10 rounded-2xl border border-white/10 bg-black/20 p-8 text-center">
+                <Users className="mx-auto mb-3 text-white/30" size={32}/>
+                <p className="text-white/45">TruckersMP drivers will appear here after the first management sync.</p>
+              </div>
+            ) : (
+              <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {tmpMembers.map(m => (
+                  <a key={m.member_id} href={`https://truckersmp.com/user/${m.user_id||m.member_id}`} target="_blank" rel="noreferrer" className="driver-card group">
+                    <div className="flex items-center gap-4">
+                      {m.avatar_url ? (
+                        <img src={m.avatar_url} alt="" className="h-14 w-14 rounded-full object-cover"/>
+                      ) : (
+                        <div className="avatar">{m.username.split(/\s+/).map(x=>x[0]).join('').slice(0,2)}</div>
+                      )}
+                      <div className="min-w-0">
+                        <h3 className="truncate text-lg font-black group-hover:text-red-400">{m.username}</h3>
+                        <p className="text-sm text-white/45">{m.role}</p>
+                      </div>
+                    </div>
+                    <div className="mt-5 border-t border-white/10 pt-4 text-xs text-white/45">
+                      <div>VTC MEMBER ID <b className="text-white">{m.member_id}</b></div>
+                      <div className="mt-1">TRUCKERSMP USER ID <b className="text-white">{m.user_id||'—'}</b></div>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
         </section>
-
         <section id="tmp-members" className="section bg-[#0d0d0d]">
           <div className="mx-auto max-w-7xl px-5 lg:px-8">
             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
