@@ -114,14 +114,24 @@ export async function POST(request:Request){
    if(existing) return existing.id;
 
    const member=memberMap.get(key);
-   const stableId=member?.user_id ? `TMP-${member.user_id}` : `TB-${crypto.createHash("sha256").update(key).digest("hex").slice(0,12)}`;
+   let stableId=member?.user_id ? `TMP-${member.user_id}` : `TB-${crypto.createHash("sha256").update(key).digest("hex").slice(0,12)}`;
    const rank=member?.role || "Driver";
-   const row={id:stableId,name:username,rank,flag:"🌍",km:"0 KM"};
-   const create=await supabase("drivers",{
+   let row={id:stableId,name:username,rank,flag:"🌍",km:"0 KM"};
+   let create=await supabase("drivers",{
     method:"POST",
     body:JSON.stringify(row),
     headers:{Prefer:"return=representation"}
    });
+   if(!create.ok){
+    const firstError=await create.text();
+    // If the generated ID already exists, use a fresh deterministic-looking ID.
+    // This avoids collisions with legacy/demo driver IDs.
+    if(firstError.includes("duplicate key") || firstError.includes("23505") || firstError.includes("already exists")){
+      stableId=`TB-${crypto.randomUUID()}`;
+      row={...row,id:stableId};
+      create=await supabase("drivers",{method:"POST",body:JSON.stringify(row),headers:{Prefer:"return=representation"}});
+    }
+   }
    if(create.ok){
     driverMap.set(key,{id:stableId,name:username});
     return stableId;
@@ -174,26 +184,46 @@ export async function POST(request:Request){
    // Import only after all driver foreign keys have been resolved.
    const migrationProbe=await supabase("delivery_records?select=external_id,source&limit=1");
    const useExtended=migrationProbe.ok;
-   const payload=useExtended?records:records.map(({external_id,source,...record})=>record);
-   const insertedIds:string[]=[];
+   let candidates=records;
 
-   for(let i=0;i<payload.length;i+=50){
-    const chunk=payload.slice(i,i+50);
-    const ins=useExtended
-      ? await supabase("delivery_records?on_conflict=external_id",{method:"POST",body:JSON.stringify(chunk),headers:{Prefer:"resolution=ignore-duplicates,return=representation"}})
-      : await supabase("delivery_records",{method:"POST",body:JSON.stringify(chunk),headers:{Prefer:"return=representation"}});
+   // Do not rely on PostgREST on_conflict. Some Supabase projects have the
+   // columns but not the unique constraint/index, which makes on_conflict fail.
+   // Instead, read existing external IDs and insert only genuinely new rows.
+   if(useExtended){
+    const ids=records.map(r=>r.external_id).filter(Boolean);
+    const existing=new Set<string>();
+    for(let i=0;i<ids.length;i+=100){
+      const batch=ids.slice(i,i+100);
+      const filter=batch.map(x=>`\"${String(x).replace(/\"/g,'\\\"')}\"`).join(",");
+      const q=await supabase(`delivery_records?external_id=in.(${filter})&select=external_id`);
+      if(!q.ok){
+        const details=await q.text();
+        return json({error:"Supabase could not check existing TrucksBook delivery IDs.",details,hint:"Run the TrucksBook delivery migration in supabase-schema.sql."},500);
+      }
+      const found=await q.json().catch(()=>[]);
+      if(Array.isArray(found)) for(const x of found) if(x?.external_id) existing.add(String(x.external_id));
+    }
+    candidates=records.filter(r=>!existing.has(r.external_id));
+   }else{
+    // The extended columns are optional, but the core delivery schema is not.
+    // Strip TrucksBook-only fields for older installations.
+    candidates=records.map(({external_id,source,...record})=>record);
+   }
+
+   for(let i=0;i<candidates.length;i+=25){
+    const chunk=candidates.slice(i,i+25);
+    const ins=await supabase("delivery_records",{method:"POST",body:JSON.stringify(chunk),headers:{Prefer:"return=representation"}});
     if(!ins.ok){
      const details=await ins.text();
      console.error("TrucksBook Supabase insert failed:",details);
      return json({
       error:"Supabase rejected the delivery records.",details,failed_batch:i+1,batch_size:chunk.length,
-      hint:"The driver records are now created automatically. If this still fails, run the delivery_records section of supabase-schema.sql and check the exact database error above."
+      hint:"The exact PostgreSQL error above identifies the rejected field or constraint. Make sure delivery_records exists and its driver_id references drivers(id)."
      },500);
     }
     const inserted=await ins.json().catch(()=>[]);
-    if(Array.isArray(inserted)) for(const item of inserted) if(item?.id) insertedIds.push(String(item.id));
+    if(Array.isArray(inserted)) imported+=inserted.length;
    }
-   imported=insertedIds.length;
   }
 
   return json({ok:true,imported,skipped,unmatched,created_drivers:createdDrivers,unmatched_names:Array.from(unmatchedNames).slice(0,50),total_rows:rows.length-1,detected_headers:headers});
