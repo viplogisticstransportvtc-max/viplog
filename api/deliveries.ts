@@ -11,6 +11,74 @@ async function isAdmin(request:Request){const token=parseCookies(request)[cookie
 function clean(v:any,max=160){return String(v??"").trim().slice(0,max);}
 function validKm(v:any){const n=Math.round(Number(v)); return Number.isFinite(n)&&n>=0?n:null;}
 
+
+async function resolveDriverId(username:string){
+  const drivers=await supabase(`drivers?name=ilike.${encodeURIComponent(username)}&select=id,name&limit=1`);
+  if(drivers.ok){
+    const d=await drivers.json();
+    if(d[0]?.id) return String(d[0].id);
+  }
+  const members=await supabase(`truckersmp_members?active=eq.true&username=ilike.${encodeURIComponent(username)}&select=user_id,username,role&limit=1`);
+  let member:any=null;
+  if(members.ok){const m=await members.json();member=m[0]||null;}
+  const newId=`TMP-${String(member?.user_id||username).replace(/[^A-Za-z0-9_-]/g,'')}`;
+  const create=await supabase("drivers",{method:"POST",body:JSON.stringify({
+    id:newId,
+    name:username,
+    rank:member?.role||"Driver",
+    flag:"🌍",
+    km:"0 KM"
+  })});
+  if(create.ok){
+    const created=await create.json();
+    return String(created[0]?.id||newId);
+  }
+  const retry=await supabase(`drivers?id=eq.${encodeURIComponent(newId)}&select=id&limit=1`);
+  if(retry.ok){const rr=await retry.json();if(rr[0]?.id)return String(rr[0].id);}
+  return "";
+}
+
+async function finalizeCompletedDelivery(a:any,end:number,distance_km:number){
+  const submissionId=String(a.submission_id||crypto.randomUUID());
+  const driverId=await resolveDriverId(String(a.truckersmp_username));
+  if(!driverId) throw new Error(`Unable to identify driver ${a.truckersmp_username}.`);
+
+  // Use the active-delivery ID as the permanent external identity. This makes
+  // automatic retries safe and prevents duplicate KM records.
+  const externalId=`vip-active-${a.id}`;
+  const existing=await supabase(`delivery_records?external_id=eq.${encodeURIComponent(externalId)}&select=id,driver_id,distance_km&limit=1`);
+  if(!existing.ok) throw new Error(`Unable to verify existing delivery record: ${await existing.text()}`);
+  const existingRows=await existing.json();
+  if(!existingRows.length){
+    const payload={driver_id:driverId,delivery_date:a.delivery_date,origin:a.origin,destination:a.destination,cargo:a.cargo,distance_km,source:"vip-delivery",external_id:externalId};
+    const record=await supabase("delivery_records",{method:"POST",body:JSON.stringify(payload)});
+    if(!record.ok){
+      const details=await record.text();
+      // Retry with the core schema for older deployments that have not yet
+      // added the optional source/external_id columns.
+      const fallback=await supabase("delivery_records",{method:"POST",body:JSON.stringify({driver_id:driverId,delivery_date:a.delivery_date,origin:a.origin,destination:a.destination,cargo:a.cargo,distance_km})});
+      if(!fallback.ok) throw new Error(`Unable to create the delivery record. ${details} | ${await fallback.text()}`);
+    }
+  }
+
+  const submissionExists=await supabase(`delivery_submissions?id=eq.${encodeURIComponent(submissionId)}&select=id&limit=1`);
+  if(submissionExists.ok && (await submissionExists.json()).length){
+    const upd=await supabase(`delivery_submissions?id=eq.${encodeURIComponent(submissionId)}`,{method:"PATCH",body:JSON.stringify({status:"APPROVED",driver_id:driverId,reviewed_at:new Date().toISOString(),end_km:end,distance_km})});
+    if(!upd.ok) throw new Error(`Delivery was recorded but submission status could not be updated. ${await upd.text()}`);
+  }else{
+    const sub=await supabase("delivery_submissions",{method:"POST",body:JSON.stringify({id:submissionId,truckersmp_username:a.truckersmp_username,driver_id:driverId,delivery_date:a.delivery_date,origin:a.origin,destination:a.destination,cargo:a.cargo,truck:a.truck,trailer:a.trailer,start_km:a.start_km,end_km:end,distance_km,status:"APPROVED",reviewed_at:new Date().toISOString()})});
+    if(!sub.ok){
+      // The delivery record is already safely recorded; leave the active row
+      // open so the next automatic retry can finish the audit trail.
+      throw new Error(`Delivery was recorded but submission history could not be saved. ${await sub.text()}`);
+    }
+  }
+
+  const done=await supabase(`active_deliveries?id=eq.${encodeURIComponent(a.id)}&status=eq.ACTIVE`,{method:"PATCH",body:JSON.stringify({status:"COMPLETED",end_km:end,distance_km,completed_at:new Date().toISOString(),submission_id:submissionId})});
+  if(!done.ok) throw new Error(`Delivery was recorded but the active delivery could not be closed. ${await done.text()}`);
+  return {submissionId,driverId};
+}
+
 export async function POST(request:Request){
   try{
     const body=await request.json().catch(()=>({})) as Record<string,any>;
@@ -81,12 +149,11 @@ export async function PATCH(request:Request){
       if(!find.ok)return json({error:"Unable to find active delivery.",details:await find.text()},500);
       const rows=await find.json(); if(!rows.length)return json({error:"Active delivery not found or already completed."},404);
       const a=rows[0]; if(end<=Number(a.start_km))return json({error:"Ending KM must be greater than starting KM."},400);
-      const distance_km=end-Number(a.start_km); const submissionId=crypto.randomUUID();
-      const sub=await supabase("delivery_submissions",{method:"POST",body:JSON.stringify({id:submissionId,truckersmp_username:a.truckersmp_username,delivery_date:a.delivery_date,origin:a.origin,destination:a.destination,cargo:a.cargo,truck:a.truck,trailer:a.trailer,start_km:a.start_km,end_km:end,distance_km,status:"PENDING"})});
-      if(!sub.ok)return json({error:"Unable to submit completed delivery for approval.",details:await sub.text()},500);
-      const done=await supabase(`active_deliveries?id=eq.${encodeURIComponent(id)}`,{method:"PATCH",body:JSON.stringify({status:"COMPLETED",end_km:end,distance_km,completed_at:new Date().toISOString(),submission_id:submissionId})});
-      if(!done.ok)return json({error:"Delivery was submitted but active delivery could not be closed.",details:await done.text()},500);
-      return json({ok:true,distance_km,submission_id:submissionId});
+      const distance_km=end-Number(a.start_km);
+      try{
+        const result=await finalizeCompletedDelivery(a,end,distance_km);
+        return json({ok:true,distance_km,submission_id:result.submissionId,status:"APPROVED",automatic:true});
+      }catch(e){return json({error:String(e instanceof Error?e.message:e)},500);}
     }
     if(action==="COMPLETE"){
       const id=clean(body.id,80), end=validKm(body.end_km);
@@ -95,12 +162,14 @@ export async function PATCH(request:Request){
       if(!find.ok)return json({error:"Unable to find active delivery.",details:await find.text()},500);
       const rows=await find.json(); if(!rows.length)return json({error:"Active delivery not found or already completed."},404);
       const a=rows[0]; if(end<=Number(a.start_km))return json({error:"Ending KM must be greater than starting KM."},400);
-      const distance_km=end-Number(a.start_km); const submissionId=crypto.randomUUID();
-      const sub=await supabase("delivery_submissions",{method:"POST",body:JSON.stringify({id:submissionId,truckersmp_username:a.truckersmp_username,delivery_date:a.delivery_date,origin:a.origin,destination:a.destination,cargo:a.cargo,truck:a.truck,trailer:a.trailer,start_km:a.start_km,end_km:end,distance_km,status:"PENDING"})});
-      if(!sub.ok)return json({error:"Unable to submit completed delivery for approval.",details:await sub.text()},500);
-      const done=await supabase(`active_deliveries?id=eq.${encodeURIComponent(id)}`,{method:"PATCH",body:JSON.stringify({status:"COMPLETED",end_km:end,distance_km,completed_at:new Date().toISOString(),submission_id:submissionId})});
-      if(!done.ok)return json({error:"Delivery was submitted but active delivery could not be closed.",details:await done.text()},500);
-      return json({ok:true,distance_km,submission_id:submissionId});
+      const distance_km=end-Number(a.start_km);
+      try{
+        // Fully automatic mode: completion immediately records and approves the
+        // delivery. The admin panel remains an audit/history view instead of a
+        // manual approval gate.
+        const result=await finalizeCompletedDelivery(a,end,distance_km);
+        return json({ok:true,distance_km,submission_id:result.submissionId,status:"APPROVED",automatic:true});
+      }catch(e){return json({error:String(e instanceof Error?e.message:e)},500);}
     }
     if(!(await isAdmin(request))) return json({error:"Unauthorized"},401);
     const id=clean(body.id,80);
