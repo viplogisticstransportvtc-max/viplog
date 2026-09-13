@@ -149,15 +149,34 @@ create table if not exists public.active_deliveries (
   truck text not null default '',
   trailer text not null default '',
   start_km integer not null check (start_km >= 0),
+  segment_start_km integer,
   end_km integer,
-  distance_km integer,
-  status text not null default 'ACTIVE' check (status in ('ACTIVE','COMPLETED')),
+  distance_km integer not null default 0 check (distance_km >= 0),
+  status text not null default 'ACTIVE' check (status in ('ACTIVE','PAUSED','COMPLETED','CANCELLED')),
   submission_id uuid,
   started_at timestamptz not null default now(),
-  completed_at timestamptz
+  paused_at timestamptz,
+  resumed_at timestamptz,
+  completed_at timestamptz,
+  job_signature text
 );
 create index if not exists active_deliveries_driver_status_idx on public.active_deliveries(truckersmp_username, status, started_at desc);
+create index if not exists active_deliveries_job_signature_idx on public.active_deliveries(truckersmp_username, job_signature);
 alter table public.active_deliveries enable row level security;
+
+-- Migration for installations created before pause/resume support.
+alter table public.active_deliveries add column if not exists paused_at timestamptz;
+alter table public.active_deliveries add column if not exists resumed_at timestamptz;
+alter table public.active_deliveries add column if not exists segment_start_km integer;
+alter table public.active_deliveries add column if not exists job_signature text;
+update public.active_deliveries set segment_start_km=start_km where segment_start_km is null;
+update public.active_deliveries set distance_km=coalesce(distance_km,0) where distance_km is null;
+do $$ begin
+  alter table public.active_deliveries drop constraint if exists active_deliveries_status_check;
+  alter table public.active_deliveries add constraint active_deliveries_status_check
+    check (status in ('ACTIVE','PAUSED','COMPLETED','CANCELLED'));
+exception when duplicate_object then null;
+end $$;
 
 -- V.I.P Delivery Software: username/password driver accounts and secure sessions.
 create table if not exists public.driver_accounts (

@@ -27,6 +27,7 @@ async function currentDriver(request:Request){
 }
 function clean(v:any,max=160){return String(v??"").trim().slice(0,max);}
 function validKm(v:any){const n=Math.round(Number(v)); return Number.isFinite(n)&&n>=0?n:null;}
+function cleanSignature(v:any){return clean(v,500);}
 
 
 async function resolveDriverId(username:string){
@@ -63,6 +64,10 @@ async function finalizeCompletedDelivery(a:any,end:number,distance_km:number){
   // Use the active-delivery ID as the permanent external identity. This makes
   // automatic retries safe and prevents duplicate KM records.
   const externalId=`vip-active-${a.id}`;
+  // When a delivery spans multiple ETS2/ATS profiles, raw odometers are not
+  // necessarily comparable. Keep the recorded distance authoritative and use
+  // an equivalent end KM for the legacy submission table's end_km constraint.
+  const submissionEndKm=Number(a.start_km)+distance_km;
   const existing=await supabase(`delivery_records?external_id=eq.${encodeURIComponent(externalId)}&select=id,driver_id,distance_km&limit=1`);
   if(!existing.ok) throw new Error(`Unable to verify existing delivery record: ${await existing.text()}`);
   const existingRows=await existing.json();
@@ -80,10 +85,10 @@ async function finalizeCompletedDelivery(a:any,end:number,distance_km:number){
 
   const submissionExists=await supabase(`delivery_submissions?id=eq.${encodeURIComponent(submissionId)}&select=id&limit=1`);
   if(submissionExists.ok && (await submissionExists.json()).length){
-    const upd=await supabase(`delivery_submissions?id=eq.${encodeURIComponent(submissionId)}`,{method:"PATCH",body:JSON.stringify({status:"APPROVED",driver_id:driverId,reviewed_at:new Date().toISOString(),end_km:end,distance_km})});
+    const upd=await supabase(`delivery_submissions?id=eq.${encodeURIComponent(submissionId)}`,{method:"PATCH",body:JSON.stringify({status:"APPROVED",driver_id:driverId,reviewed_at:new Date().toISOString(),end_km:submissionEndKm,distance_km})});
     if(!upd.ok) throw new Error(`Delivery was recorded but submission status could not be updated. ${await upd.text()}`);
   }else{
-    const sub=await supabase("delivery_submissions",{method:"POST",body:JSON.stringify({id:submissionId,truckersmp_username:a.truckersmp_username,driver_id:driverId,delivery_date:a.delivery_date,origin:a.origin,destination:a.destination,cargo:a.cargo,truck:a.truck,trailer:a.trailer,start_km:a.start_km,end_km:end,distance_km,status:"APPROVED",reviewed_at:new Date().toISOString()})});
+    const sub=await supabase("delivery_submissions",{method:"POST",body:JSON.stringify({id:submissionId,truckersmp_username:a.truckersmp_username,driver_id:driverId,delivery_date:a.delivery_date,origin:a.origin,destination:a.destination,cargo:a.cargo,truck:a.truck,trailer:a.trailer,start_km:a.start_km,end_km:submissionEndKm,distance_km,status:"APPROVED",reviewed_at:new Date().toISOString()})});
     if(!sub.ok){
       // The delivery record is already safely recorded; leave the active row
       // open so the next automatic retry can finish the audit trail.
@@ -102,26 +107,26 @@ export async function POST(request:Request){
     const action=clean(body.action,20).toUpperCase();
     if(action==="START_ADMIN"){
       if(!(await isAdmin(request))) return json({error:"Unauthorized"},401);
-      const username=clean(body.truckersmp_username,80), origin=clean(body.origin), destination=clean(body.destination), cargo=clean(body.cargo), truck=clean(body.truck,100), trailer=clean(body.trailer,100), date=clean(body.delivery_date,20);
+      const username=clean(body.truckersmp_username,80), origin=clean(body.origin), destination=clean(body.destination), cargo=clean(body.cargo), truck=clean(body.truck,100), trailer=clean(body.trailer,100), date=clean(body.delivery_date,20), jobSignature=cleanSignature(body.job_signature);
       const start=validKm(body.start_km);
       if(!username||!origin||!destination||!cargo||!date||!/^\d{4}-\d{2}-\d{2}$/.test(date)||start===null) return json({error:"Enter the driver, route, cargo, date and valid starting KM."},400);
       const existing=await supabase(`active_deliveries?truckersmp_username=eq.${encodeURIComponent(username)}&status=eq.ACTIVE&select=id&limit=1`);
       if(existing.ok && (await existing.json()).length) return json({error:"This driver already has an active delivery."},409);
       const id=randomUUID();
-      const r=await supabase("active_deliveries",{method:"POST",body:JSON.stringify({id,truckersmp_username:username,delivery_date:date,origin,destination,cargo,truck,trailer,start_km:start,status:"ACTIVE"})});
+      const r=await supabase("active_deliveries",{method:"POST",body:JSON.stringify({id,truckersmp_username:username,delivery_date:date,origin,destination,cargo,truck,trailer,start_km:start,segment_start_km:start,distance_km:0,status:"ACTIVE",job_signature:jobSignature||null})});
       if(!r.ok)return json({error:"Unable to start delivery.",details:await r.text()},500);
       return json({ok:true,delivery:(await r.json())[0]});
     }
     if(action==="START"){
       const driver=await currentDriver(request);
       if(!driver) return json({error:"Driver login required."},401);
-      const username=String(driver.truckersmp_username), origin=clean(body.origin), destination=clean(body.destination), cargo=clean(body.cargo), truck=clean(body.truck,100), trailer=clean(body.trailer,100), date=clean(body.delivery_date,20);
+      const username=String(driver.truckersmp_username), origin=clean(body.origin), destination=clean(body.destination), cargo=clean(body.cargo), truck=clean(body.truck,100), trailer=clean(body.trailer,100), date=clean(body.delivery_date,20), jobSignature=cleanSignature(body.job_signature);
       const start=validKm(body.start_km);
       if(!username||!origin||!destination||!cargo||!date||!/^(\d{4})-(\d{2})-(\d{2})$/.test(date)||start===null) return json({error:"Enter your username, route, cargo, delivery date and valid starting KM."},400);
       const existing=await supabase(`active_deliveries?truckersmp_username=eq.${encodeURIComponent(username)}&status=eq.ACTIVE&select=id&limit=1`);
       if(existing.ok && (await existing.json()).length) return json({error:"You already have an active delivery. Complete it before starting another."},409);
       const id=randomUUID();
-      const r=await supabase("active_deliveries",{method:"POST",body:JSON.stringify({id,truckersmp_username:username,delivery_date:date,origin,destination,cargo,truck,trailer,start_km:start,status:"ACTIVE"})});
+      const r=await supabase("active_deliveries",{method:"POST",body:JSON.stringify({id,truckersmp_username:username,delivery_date:date,origin,destination,cargo,truck,trailer,start_km:start,segment_start_km:start,distance_km:0,status:"ACTIVE",job_signature:jobSignature||null})});
       if(!r.ok)return json({error:"Unable to start delivery.",details:await r.text()},500);
       return json({ok:true,delivery: (await r.json())[0]});
     }
@@ -147,9 +152,15 @@ export async function GET(request:Request){
     const driver=await currentDriver(request);
     if(!driver) return json({error:"Driver login required."},401);
     const activeUsername=String(driver.truckersmp_username);
-    const r=await supabase(`active_deliveries?truckersmp_username=eq.${encodeURIComponent(activeUsername)}&status=eq.ACTIVE&select=id,truckersmp_username,delivery_date,origin,destination,cargo,truck,trailer,start_km,started_at,status&order=started_at.desc&limit=1`);
-    if(!r.ok)return json({error:"Unable to load active delivery."},500);
-    return json({active:(await r.json())[0]||null});
+    const [active, paused] = await Promise.all([
+      supabase(`active_deliveries?truckersmp_username=eq.${encodeURIComponent(activeUsername)}&status=eq.ACTIVE&select=id,truckersmp_username,delivery_date,origin,destination,cargo,truck,trailer,start_km,started_at,status,job_signature,paused_at,resumed_at&order=started_at.desc&limit=1`),
+      supabase(`active_deliveries?truckersmp_username=eq.${encodeURIComponent(activeUsername)}&status=eq.PAUSED&select=id,truckersmp_username,delivery_date,origin,destination,cargo,truck,trailer,start_km,started_at,status,job_signature,paused_at,resumed_at&order=paused_at.desc`)
+    ]);
+    if(!active.ok)return json({error:"Unable to load active delivery."},500);
+    if(!paused.ok)return json({error:"Unable to load paused deliveries."},500);
+    const activeRows=await active.json();
+    const pausedRows=await paused.json();
+    return json({active:activeRows[0]||null,paused:Array.isArray(pausedRows)?pausedRows:[]});
   }
   if(!(await isAdmin(request))) return json({error:"Unauthorized"},401);
   const [pending, active] = await Promise.all([
@@ -186,12 +197,58 @@ export async function PATCH(request:Request){
       const find=await supabase(`active_deliveries?id=eq.${encodeURIComponent(id)}&status=eq.ACTIVE&select=*`);
       if(!find.ok)return json({error:"Unable to find active delivery.",details:await find.text()},500);
       const rows=await find.json(); if(!rows.length)return json({error:"Active delivery not found or already completed."},404);
-      const a=rows[0]; if(end<=Number(a.start_km))return json({error:"Ending KM must be greater than starting KM."},400);
-      const distance_km=end-Number(a.start_km);
+      const a=rows[0];
+      const segmentStart=Number(a.segment_start_km ?? a.start_km);
+      const accumulated=Math.max(0,Number(a.distance_km||0));
+      if(end<segmentStart || (end===segmentStart && accumulated<=0))return json({error:"Ending KM must be greater than the current segment starting KM, or the delivery must already have recorded distance."},400);
+      const distance_km=accumulated+Math.max(0,end-segmentStart);
       try{
         const result=await finalizeCompletedDelivery(a,end,distance_km);
         return json({ok:true,distance_km,submission_id:result.submissionId,status:"APPROVED",automatic:true});
       }catch(e){return json({error:String(e instanceof Error?e.message:e)},500);}
+    }
+    if(action==="PAUSE"){
+      const driver=await currentDriver(request);
+      if(!driver) return json({error:"Driver login required."},401);
+      const id=clean(body.id,80), pauseKm=validKm(body.pause_km);
+      if(!id) return json({error:"Missing active delivery."},400);
+      const find=await supabase(`active_deliveries?id=eq.${encodeURIComponent(id)}&status=eq.ACTIVE&select=*`);
+      if(!find.ok)return json({error:"Unable to find active delivery.",details:await find.text()},500);
+      const rows=await find.json();
+      if(!rows.length)return json({ok:true,status:"PAUSED",already_paused:true});
+      const a=rows[0];
+      if(String(a.truckersmp_username).toLowerCase()!==String(driver.truckersmp_username).toLowerCase()) return json({error:"You can only pause your own delivery."},403);
+      const segmentStart=Number(a.segment_start_km ?? a.start_km);
+      const accumulated=Math.max(0,Number(a.distance_km||0));
+      if(pauseKm!==null && pauseKm<segmentStart)return json({error:"Pause KM cannot be lower than the current segment starting KM."},400);
+      const segmentDistance=pauseKm===null?0:Math.max(0,pauseKm-segmentStart);
+      const totalDistance=accumulated+segmentDistance;
+      const paused=await supabase(`active_deliveries?id=eq.${encodeURIComponent(id)}&status=eq.ACTIVE`,{
+        method:"PATCH",
+        body:JSON.stringify({status:"PAUSED",paused_at:new Date().toISOString(),distance_km:totalDistance,segment_start_km:pauseKm===null?segmentStart:pauseKm})
+      });
+      if(!paused.ok)return json({error:"Unable to pause the active delivery.",details:await paused.text()},500);
+      return json({ok:true,status:"PAUSED",delivery:(await paused.json())[0]||a});
+    }
+    if(action==="RESUME"){
+      const driver=await currentDriver(request);
+      if(!driver) return json({error:"Driver login required."},401);
+      const id=clean(body.id,80), resumeKm=validKm(body.resume_km);
+      if(!id) return json({error:"Missing paused delivery."},400);
+      const find=await supabase(`active_deliveries?id=eq.${encodeURIComponent(id)}&status=eq.PAUSED&select=*`);
+      if(!find.ok)return json({error:"Unable to find paused delivery.",details:await find.text()},500);
+      const rows=await find.json();
+      if(!rows.length)return json({error:"Paused delivery not found or already resumed."},404);
+      const a=rows[0];
+      if(String(a.truckersmp_username).toLowerCase()!==String(driver.truckersmp_username).toLowerCase()) return json({error:"You can only resume your own delivery."},403);
+      const existing=await supabase(`active_deliveries?truckersmp_username=eq.${encodeURIComponent(String(driver.truckersmp_username))}&status=eq.ACTIVE&select=id&limit=1`);
+      if(existing.ok && (await existing.json()).length) return json({error:"Pause the current active delivery before resuming another delivery."},409);
+      const resumed=await supabase(`active_deliveries?id=eq.${encodeURIComponent(id)}&status=eq.PAUSED`,{
+        method:"PATCH",
+        body:JSON.stringify({status:"ACTIVE",resumed_at:new Date().toISOString(),segment_start_km:resumeKm===null?Number(a.segment_start_km??a.start_km):resumeKm})
+      });
+      if(!resumed.ok)return json({error:"Unable to resume the paused delivery.",details:await resumed.text()},500);
+      return json({ok:true,status:"ACTIVE",delivery:(await resumed.json())[0]||a});
     }
     if(action==="CANCEL"){
       const driver=await currentDriver(request);
@@ -205,10 +262,13 @@ export async function PATCH(request:Request){
       const a=rows[0];
       if(String(a.truckersmp_username).toLowerCase()!==String(driver.truckersmp_username).toLowerCase()) return json({error:"You can only cancel your own delivery."},403);
       // A cancelled TruckTel job must never count as a completed delivery.
-      // Remove the active row so the desktop client and admin view immediately
-      // stop showing it, without creating a delivery record or KM credit.
-      const removed=await supabase(`active_deliveries?id=eq.${encodeURIComponent(id)}&status=eq.ACTIVE`,{method:"DELETE"});
-      if(!removed.ok)return json({error:"Unable to cancel the active delivery.",details:await removed.text()},500);
+      // Keep the session as CANCELLED for audit/history, but exclude it from
+      // active/paused driver queries so it cannot block a new delivery.
+      const cancelled=await supabase(`active_deliveries?id=eq.${encodeURIComponent(id)}&status=eq.ACTIVE`,{
+        method:"PATCH",
+        body:JSON.stringify({status:"CANCELLED",completed_at:new Date().toISOString()})
+      });
+      if(!cancelled.ok)return json({error:"Unable to cancel the active delivery.",details:await cancelled.text()},500);
       return json({ok:true,status:"CANCELLED",cancelled:true});
     }
     if(action==="COMPLETE"){
@@ -221,8 +281,10 @@ export async function PATCH(request:Request){
       const rows=await find.json(); if(!rows.length)return json({error:"Active delivery not found or already completed."},404);
       const a=rows[0];
       if(String(a.truckersmp_username).toLowerCase()!==String(driver.truckersmp_username).toLowerCase()) return json({error:"You can only complete your own delivery."},403);
-      if(end<=Number(a.start_km))return json({error:"Ending KM must be greater than starting KM."},400);
-      const distance_km=end-Number(a.start_km);
+      const segmentStart=Number(a.segment_start_km ?? a.start_km);
+      const accumulated=Math.max(0,Number(a.distance_km||0));
+      if(end<segmentStart || (end===segmentStart && accumulated<=0))return json({error:"Ending KM must be greater than the current segment starting KM, or the delivery must already have recorded distance."},400);
+      const distance_km=accumulated+Math.max(0,end-segmentStart);
       try{
         // Fully automatic mode: completion immediately records and approves the
         // delivery. The admin panel remains an audit/history view instead of a
